@@ -223,6 +223,46 @@ function normalizeUrl(url) {
   }
 }
 
+function getOriginPattern(url) {
+  try {
+    const origin = new URL(url.trim()).origin;
+    return `${origin}/*`;
+  } catch {
+    return null;
+  }
+}
+
+function checkOriginPermission(originPattern) {
+  return new Promise(resolve => {
+    chrome.permissions.contains({ origins: [originPattern] }, resolve);
+  });
+}
+
+function requestOriginPermission(originPattern) {
+  return new Promise(resolve => {
+    chrome.permissions.request({ origins: [originPattern] }, resolve);
+  });
+}
+
+async function ensureHostPermission(url) {
+  const originPattern = getOriginPattern(url);
+  if (!originPattern) {
+    return { ok: false, message: 'URLの形式が正しくありません' };
+  }
+
+  const hasPermission = await checkOriginPermission(originPattern);
+  if (hasPermission) {
+    return { ok: true };
+  }
+
+  const granted = await requestOriginPermission(originPattern);
+  if (!granted) {
+    return { ok: false, message: 'このサイトへのアクセス権限が必要です' };
+  }
+
+  return { ok: true };
+}
+
 /**
  * Show error message
  */
@@ -260,6 +300,15 @@ async function handleTestConnection() {
  * Test connection to WordPress
  */
 async function testConnection() {
+  const permissionResult = await ensureHostPermission(tempConfig.wpUrl);
+  if (!permissionResult.ok) {
+    showTestFailure(permissionResult.message, [
+      'ブラウザの許可ダイアログで「許可」を選択してください',
+      'URLが正しいか確認してください'
+    ]);
+    return;
+  }
+
   showLoading(true);
 
   try {
@@ -278,23 +327,24 @@ async function testConnection() {
       elements.connectedUrl.textContent = new URL(tempConfig.wpUrl).hostname;
       elements.connectedUser.textContent = response.data.user || tempConfig.wpUser;
     } else {
-      elements.testSuccess.style.display = 'none';
-      elements.testFailed.style.display = 'block';
-      elements.testErrorMessage.textContent = response.error.message;
-
-      // Show error hints
       const hints = getErrorHints(response.error.code);
-      elements.errorHints.innerHTML = hints.map(h => `<li>${h}</li>`).join('');
+      showTestFailure(response.error.message, hints);
     }
   } catch (error) {
-    showLoading(false);
-    showStep('Result');
-    elements.testResult.classList.add('active');
-    elements.testSuccess.style.display = 'none';
-    elements.testFailed.style.display = 'block';
-    elements.testErrorMessage.textContent = 'エラーが発生しました';
-    elements.errorHints.innerHTML = '<li>拡張機能を再読み込みしてください</li>';
+    showTestFailure('エラーが発生しました', [
+      '拡張機能を再読み込みしてください'
+    ]);
   }
+}
+
+function showTestFailure(message, hints) {
+  showLoading(false);
+  showStep('Result');
+  elements.testResult.classList.add('active');
+  elements.testSuccess.style.display = 'none';
+  elements.testFailed.style.display = 'block';
+  elements.testErrorMessage.textContent = message;
+  elements.errorHints.innerHTML = hints.map(h => `<li>${h}</li>`).join('');
 }
 
 /**

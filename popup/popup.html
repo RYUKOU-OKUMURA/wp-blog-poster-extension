@@ -63,26 +63,26 @@
       <div id="step3" class="step">
         <div class="step-indicator">
           <span class="step-number">ステップ 3/3</span>
-          <span class="step-title">接続パスワード</span>
+          <span class="step-title">認証情報</span>
         </div>
 
         <div class="form-group">
-          <label for="wpPassword">アプリケーションパスワード</label>
-          <div class="password-input">
-            <input type="password" id="wpPassword" placeholder="xxxx xxxx xxxx xxxx xxxx xxxx">
-            <button type="button" id="togglePassword" class="icon-btn">👁</button>
-          </div>
-          <p class="hint">⚠️ これは通常のログインパスワードとは異なります</p>
+          <label for="wpToken">アクセストークン（推奨）</label>
+          <input type="text" id="wpToken" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+          <p class="hint">💡 専用プラグインで発行したトークンを入力してください</p>
           <p class="error" id="passwordError"></p>
         </div>
 
         <div class="form-group">
-          <label for="wpToken">アクセストークン（任意）</label>
-          <input type="text" id="wpToken" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
-          <p class="hint">💡 専用プラグインを使う場合だけ入力してください</p>
+          <label for="wpPassword">アプリケーションパスワード（任意・よりセキュリティを高めたい方向け）</label>
+          <div class="password-input">
+            <input type="password" id="wpPassword" placeholder="xxxx xxxx xxxx xxxx xxxx xxxx">
+            <button type="button" id="togglePassword" class="icon-btn">👁</button>
+          </div>
+          <p class="hint">⚠️ 通常のログインパスワードとは異なります（トークンが使えない場合に利用）</p>
         </div>
 
-        <a href="#" id="openGuidePassword" class="guide-link-small">📖 パスワードの取得方法を見る</a>
+        <a href="#" id="openGuidePassword" class="guide-link-small">📖 トークン/パスワードの取得方法を見る</a>
 
         <div class="btn-group">
           <button id="backToStep2" class="btn secondary">← 戻る</button>

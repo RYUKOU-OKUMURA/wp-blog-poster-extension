@@ -13,7 +13,9 @@
     "https://chat.openai.com/*",
     "https://chatgpt.com/*",
     "https://claude.ai/*",
-    "https://gemini.google.com/*",
+    "https://gemini.google.com/*"
+  ],
+  "optional_host_permissions": [
     "https://*/*"
   ],
 

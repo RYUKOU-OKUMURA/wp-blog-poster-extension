@@ -56,22 +56,14 @@ class WordPressAPI {
       headers['Authorization'] = `Basic ${this.auth}`;
     }
 
-    // デバッグログ
-    console.log('[WPBP Debug] Request URL:', url);
-    console.log('[WPBP Debug] Token present:', !!this.token, 'Token length:', this.token?.length);
-    console.log('[WPBP Debug] Headers:', JSON.stringify(headers, null, 2));
-
     try {
       const response = await fetch(url, {
         ...options,
         headers
       });
 
-      console.log('[WPBP Debug] Response status:', response.status);
-
       if (!response.ok) {
         const errorText = await response.text();
-        console.log('[WPBP Debug] Error response body:', errorText);
         let error = {};
         try {
           error = JSON.parse(errorText);
