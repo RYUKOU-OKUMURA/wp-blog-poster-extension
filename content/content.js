@@ -64,8 +64,24 @@
         // Claudeのアシスタントメッセージ
         return '[data-is-streaming="false"].font-claude-message .grid-cols-1, .font-claude-message .prose';
       case 'gemini':
-        // Geminiのアシスタントメッセージ（最も外側の要素のみ）
-        return '.model-response-text';
+        // Geminiのアシスタントメッセージ（会話ターンコンテナ）
+        return 'message-content.model-response-text';
+      default:
+        return null;
+    }
+  }
+
+  /**
+   * プラットフォーム別の親コンテナセレクタ（重複防止用）
+   */
+  function getParentContainerSelector(platform) {
+    switch (platform) {
+      case 'chatgpt':
+        return '[data-message-author-role="assistant"]';
+      case 'claude':
+        return '.font-claude-message';
+      case 'gemini':
+        return 'model-response, .conversation-turn';
       default:
         return null;
     }
@@ -76,6 +92,7 @@
    */
   function scanForMarkdownBlocks() {
     const platform = detectPlatform();
+    const parentSelector = getParentContainerSelector(platform);
     let foundInPlatformMessage = false;
 
     // 1. プラットフォーム固有のアシスタントメッセージを検索
@@ -86,6 +103,12 @@
         if (processedBlocks.has(msg)) return;
         // 既にボタンがある要素はスキップ
         if (msg.querySelector('.wp-post-btn-wrapper')) return;
+
+        // 親コンテナに既にボタンがある場合はスキップ（重複防止）
+        if (parentSelector) {
+          const parent = msg.closest(parentSelector);
+          if (parent && parent.querySelector('.wp-post-btn-wrapper')) return;
+        }
 
         const content = msg.innerText || msg.textContent || '';
 
@@ -106,7 +129,10 @@
         if (processedBlocks.has(block)) return;
         // 既にボタンがある親要素はスキップ
         if (block.closest('.wp-post-btn-wrapper')) return;
-        if (block.closest('[data-message-author-role="assistant"]')?.querySelector('.wp-post-btn-wrapper')) return;
+        if (parentSelector) {
+          const parent = block.closest(parentSelector);
+          if (parent && parent.querySelector('.wp-post-btn-wrapper')) return;
+        }
 
         const content = block.textContent || '';
 
