@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WordPress接続設定ガイド - ブログ投稿アシスタント</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', sans-serif;
+      line-height: 1.8;
+      color: #333;
+      background: #f8f9fa;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 40px 20px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+
+    header h1 {
+      font-size: 28px;
+      color: #1a1a1a;
+      margin-bottom: 8px;
+    }
+
+    header p {
+      color: #666;
+      font-size: 16px;
+    }
+
+    .toc {
+      background: #fff;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 40px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+
+    .toc h2 {
+      font-size: 16px;
+      margin-bottom: 16px;
+      color: #444;
+    }
+
+    .toc ol {
+      padding-left: 24px;
+    }
+
+    .toc li {
+      margin: 8px 0;
+    }
+
+    .toc a {
+      color: #667eea;
+      text-decoration: none;
+    }
+
+    .toc a:hover {
+      text-decoration: underline;
+    }
+
+    section {
+      background: #fff;
+      border-radius: 12px;
+      padding: 32px;
+      margin-bottom: 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+
+    section h2 {
+      font-size: 20px;
+      color: #1a1a1a;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid #667eea;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    section h3 {
+      font-size: 16px;
+      color: #333;
+      margin: 24px 0 12px 0;
+    }
+
+    p {
+      margin-bottom: 16px;
+    }
+
+    .info-box {
+      background: #e8f4fd;
+      border-left: 4px solid #2196f3;
+      padding: 16px 20px;
+      border-radius: 0 8px 8px 0;
+      margin: 20px 0;
+    }
+
+    .info-box h4 {
+      color: #1976d2;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+
+    .warning-box {
+      background: #fff3e0;
+      border-left: 4px solid #ff9800;
+      padding: 16px 20px;
+      border-radius: 0 8px 8px 0;
+      margin: 20px 0;
+    }
+
+    .warning-box h4 {
+      color: #f57c00;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+
+    .step-list {
+      list-style: none;
+      padding: 0;
+      counter-reset: step;
+    }
+
+    .step-list li {
+      position: relative;
+      padding: 20px 20px 20px 60px;
+      margin: 16px 0;
+      background: #f8f9fa;
+      border-radius: 8px;
+      counter-increment: step;
+    }
+
+    .step-list li::before {
+      content: "Step " counter(step);
+      position: absolute;
+      left: 12px;
+      top: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+
+    .step-list li strong {
+      display: block;
+      font-size: 15px;
+      margin-bottom: 8px;
+    }
+
+    code {
+      background: #f1f3f5;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 13px;
+      color: #d63384;
+    }
+
+    .code-block {
+      background: #2d2d2d;
+      color: #f8f8f2;
+      padding: 16px 20px;
+      border-radius: 8px;
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 13px;
+      overflow-x: auto;
+      margin: 16px 0;
+    }
+
+    .screenshot-placeholder {
+      background: #f1f3f5;
+      border: 2px dashed #dee2e6;
+      border-radius: 8px;
+      padding: 40px;
+      text-align: center;
+      color: #868e96;
+      margin: 16px 0;
+    }
+
+    .faq-item {
+      margin: 20px 0;
+      padding: 20px;
+      background: #f8f9fa;
+      border-radius: 8px;
+    }
+
+    .faq-item h4 {
+      color: #667eea;
+      font-size: 15px;
+      margin-bottom: 12px;
+    }
+
+    .faq-item h4::before {
+      content: "Q. ";
+    }
+
+    .faq-item p::before {
+      content: "A. ";
+      font-weight: 600;
+      color: #28a745;
+    }
+
+    .usage-section {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #fff;
+      border-radius: 12px;
+      padding: 32px;
+      margin-bottom: 24px;
+    }
+
+    .usage-section h2 {
+      color: #fff;
+      border-bottom-color: rgba(255,255,255,0.3);
+    }
+
+    .usage-section ol {
+      padding-left: 24px;
+    }
+
+    .usage-section li {
+      margin: 12px 0;
+    }
+
+    .usage-section code {
+      background: rgba(255,255,255,0.2);
+      color: #fff;
+    }
+
+    footer {
+      text-align: center;
+      padding: 40px 20px;
+      color: #666;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>WordPress接続設定ガイド</h1>
+      <p>ブログ投稿アシスタントの設定方法を解説します</p>
+    </header>
+
+    <nav class="toc">
+      <h2>目次</h2>
+      <ol>
+        <li><a href="#about">アプリケーションパスワードとは？</a></li>
+        <li><a href="#enable">アプリケーションパスワードを有効にする</a></li>
+        <li><a href="#generate">パスワードを発行する手順</a></li>
+        <li><a href="#url">サイトのURLを確認する</a></li>
+        <li><a href="#usage">拡張機能の使い方</a></li>
+        <li><a href="#faq">よくある質問</a></li>
+      </ol>
+    </nav>
+
+    <section id="about">
+      <h2>1. アプリケーションパスワードとは？</h2>
+      <p>
+        アプリケーションパスワードは、WordPress 5.6以降で使える機能です。
+        通常のログインパスワードとは別に、アプリ専用のパスワードを作成できます。
+      </p>
+
+      <div class="info-box">
+        <h4>メリット</h4>
+        <ul>
+          <li>通常のログインパスワードを入力せずに済む</li>
+          <li>いつでも無効化できる（通常のログインには影響なし）</li>
+          <li>アプリごとに別のパスワードを使える</li>
+        </ul>
+      </div>
+
+      <p>
+        この拡張機能では、アプリケーションパスワードを使用してWordPressと安全に接続します。
+        通常のログインパスワードは使用しないため、セキュリティ面でも安心です。
+      </p>
+    </section>
+
+    <section id="enable">
+      <h2>2. アプリケーションパスワードを有効にする</h2>
+      <p>
+        WordPress 5.6以降をお使いの場合、この機能はデフォルトで有効になっています。
+      </p>
+
+      <h3>確認方法</h3>
+      <p>
+        WordPress管理画面にログインし、「ユーザー」→「プロフィール」を開きます。
+        ページを下にスクロールすると「アプリケーションパスワード」というセクションがあれば有効です。
+      </p>
+
+      <div class="screenshot-placeholder">
+        WordPress管理画面 → ユーザー → プロフィール<br>
+        「アプリケーションパスワード」セクションの位置
+      </div>
+
+      <div class="warning-box">
+        <h4>セクションが表示されない場合</h4>
+        <ul>
+          <li>サイトがHTTPSに対応しているか確認してください</li>
+          <li>セキュリティプラグイン（Wordfenceなど）が無効化している可能性があります</li>
+          <li>WordPress 5.6より古いバージョンを使用している可能性があります</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="generate">
+      <h2>3. パスワードを発行する手順</h2>
+
+      <ol class="step-list">
+        <li>
+          <strong>WordPress管理画面にログイン</strong>
+          <p>ブラウザで以下のURLにアクセスしてログインします：</p>
+          <div class="code-block">https://あなたのサイト.com/wp-admin/</div>
+        </li>
+
+        <li>
+          <strong>「ユーザー」→「プロフィール」を開く</strong>
+          <p>左側のメニューから「ユーザー」をクリックし、「プロフィール」を選択します。</p>
+        </li>
+
+        <li>
+          <strong>「アプリケーションパスワード」セクションを探す</strong>
+          <p>ページを下にスクロールして「アプリケーションパスワード」セクションを見つけます。</p>
+        </li>
+
+        <li>
+          <strong>名前を入力</strong>
+          <p>「新しいアプリケーションパスワード名」に以下を入力します：</p>
+          <div class="code-block">ブログ投稿アシスタント</div>
+          <p>※名前は何でもOKですが、後で何のパスワードか分かるようにしておきましょう。</p>
+        </li>
+
+        <li>
+          <strong>「新しいアプリケーションパスワードを追加」をクリック</strong>
+          <p>ボタンをクリックするとパスワードが生成されます。</p>
+        </li>
+
+        <li>
+          <strong>パスワードをコピー</strong>
+          <p>表示されたパスワードをコピーします。</p>
+          <div class="code-block">xxxx xxxx xxxx xxxx xxxx xxxx</div>
+        </li>
+      </ol>
+
+      <div class="warning-box">
+        <h4>重要: パスワードは一度しか表示されません！</h4>
+        <p>
+          この画面を閉じると、パスワードは二度と表示されません。
+          必ずコピーしてから画面を閉じてください。
+        </p>
+        <p>
+          もしコピーし忘れた場合は、そのパスワードを「無効化」して、
+          新しいパスワードを発行してください。
+        </p>
+      </div>
+    </section>
+
+    <section id="url">
+      <h2>4. サイトのURLを確認する</h2>
+
+      <h3>正しいURLの例</h3>
+      <div class="code-block">https://example.com</div>
+      <div class="code-block">https://blog.example.com</div>
+
+      <h3>間違ったURLの例</h3>
+      <div class="code-block">https://example.com/wp-admin/  ← /wp-admin/ は不要</div>
+      <div class="code-block">http://example.com  ← HTTPSを使用してください</div>
+
+      <div class="info-box">
+        <h4>確認方法</h4>
+        <p>
+          ブラウザでサイトのトップページを開いたときのURLです。
+          管理画面（/wp-admin/）のURLではありません。
+        </p>
+      </div>
+    </section>
+
+    <section class="usage-section" id="usage">
+      <h2>5. 拡張機能の使い方</h2>
+
+      <ol>
+        <li>
+          <strong>ChatGPT・Claude・Geminiでブログ記事を作成</strong><br>
+          普段通りAIに記事を書いてもらいます。
+        </li>
+
+        <li>
+          <strong>出力形式を指定</strong><br>
+          記事の最後に「<code>```markdown</code>で囲んで出力してください」と伝えます。
+        </li>
+
+        <li>
+          <strong>投稿ボタンをクリック</strong><br>
+          マークダウンコードブロックの右下に「📤 WPに投稿」ボタンが表示されます。
+        </li>
+
+        <li>
+          <strong>確認して投稿</strong><br>
+          タイトルやカテゴリを確認し、「投稿する」をクリックで完了！
+        </li>
+      </ol>
+    </section>
+
+    <section id="faq">
+      <h2>6. よくある質問</h2>
+
+      <div class="faq-item">
+        <h4>「認証に失敗しました」と表示される</h4>
+        <p>
+          ユーザー名が正しいか確認してください（メールアドレスではなくユーザー名です）。
+          また、通常のログインパスワードではなく、アプリケーションパスワードを使用しているか確認してください。
+          パスワードはスペースを含めてそのままコピーしてください。
+        </p>
+      </div>
+
+      <div class="faq-item">
+        <h4>「WordPressが見つかりません」と表示される</h4>
+        <p>
+          URLが正しいか確認してください。https:// で始まっているか、末尾に余計な文字（/wp-admin/ など）がついていないか確認してください。
+          また、WordPressのREST APIが有効になっているか確認してください。
+        </p>
+      </div>
+
+      <div class="faq-item">
+        <h4>「投稿権限がありません」と表示される</h4>
+        <p>
+          WordPressでのユーザー権限を確認してください。
+          「投稿者」以上の権限が必要です。
+          WordPress管理者に権限を確認してもらってください。
+        </p>
+      </div>
+
+      <div class="faq-item">
+        <h4>アプリケーションパスワードのセクションがない</h4>
+        <p>
+          WordPress 5.6より古いバージョンを使用している可能性があります。
+          または、セキュリティプラグインが機能を無効化している可能性があります。
+          サイトがHTTPSに対応しているかも確認してください。
+        </p>
+      </div>
+
+      <div class="faq-item">
+        <h4>投稿ボタンが表示されない</h4>
+        <p>
+          マークダウンコードブロック（```markdown で始まるコード）があるか確認してください。
+          また、記事の内容が短すぎる場合（200文字未満）は検出されないことがあります。
+        </p>
+      </div>
+    </section>
+
+    <footer>
+      <p>ブログ投稿アシスタント</p>
+    </footer>
+  </div>
+</body>
+</html>

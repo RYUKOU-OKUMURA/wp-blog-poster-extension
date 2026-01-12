@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ブログ投稿アシスタント</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1>ブログ投稿アシスタント</h1>
+      <button id="helpBtn" class="icon-btn" title="ヘルプ">?</button>
+    </header>
+
+    <!-- 未設定時: セットアップウィザード -->
+    <div id="setupWizard" class="wizard">
+      <!-- ステップ1: URL -->
+      <div id="step1" class="step active">
+        <div class="welcome-box">
+          <span class="welcome-icon">🎉</span>
+          <p>ようこそ！<br>WordPressと接続しましょう</p>
+        </div>
+
+        <div class="step-indicator">
+          <span class="step-number">ステップ 1/3</span>
+          <span class="step-title">サイトURL</span>
+        </div>
+
+        <div class="form-group">
+          <label for="wpUrl">サイトのURL</label>
+          <input type="url" id="wpUrl" placeholder="https://your-site.com">
+          <p class="hint">💡 トップページのURLを入力してください</p>
+          <p class="error" id="urlError"></p>
+        </div>
+
+        <button id="toStep2" class="btn primary">次へ進む →</button>
+
+        <a href="#" id="openGuide" class="guide-link">📖 設定方法がわからない方はこちら</a>
+      </div>
+
+      <!-- ステップ2: ユーザー名 -->
+      <div id="step2" class="step">
+        <div class="step-indicator">
+          <span class="step-number">ステップ 2/3</span>
+          <span class="step-title">ユーザー名</span>
+        </div>
+
+        <div class="form-group">
+          <label for="wpUser">WordPressのユーザー名</label>
+          <input type="text" id="wpUser" placeholder="admin">
+          <p class="hint">💡 WordPress管理画面にログインするときのユーザー名と同じです</p>
+          <p class="error" id="userError"></p>
+        </div>
+
+        <div class="btn-group">
+          <button id="backToStep1" class="btn secondary">← 戻る</button>
+          <button id="toStep3" class="btn primary">次へ →</button>
+        </div>
+      </div>
+
+      <!-- ステップ3: パスワード -->
+      <div id="step3" class="step">
+        <div class="step-indicator">
+          <span class="step-number">ステップ 3/3</span>
+          <span class="step-title">接続パスワード</span>
+        </div>
+
+        <div class="form-group">
+          <label for="wpPassword">アプリケーションパスワード</label>
+          <div class="password-input">
+            <input type="password" id="wpPassword" placeholder="xxxx xxxx xxxx xxxx xxxx xxxx">
+            <button type="button" id="togglePassword" class="icon-btn">👁</button>
+          </div>
+          <p class="hint">⚠️ これは通常のログインパスワードとは異なります</p>
+          <p class="error" id="passwordError"></p>
+        </div>
+
+        <div class="form-group">
+          <label for="wpToken">アクセストークン（任意）</label>
+          <input type="text" id="wpToken" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+          <p class="hint">💡 専用プラグインを使う場合だけ入力してください</p>
+        </div>
+
+        <a href="#" id="openGuidePassword" class="guide-link-small">📖 パスワードの取得方法を見る</a>
+
+        <div class="btn-group">
+          <button id="backToStep2" class="btn secondary">← 戻る</button>
+          <button id="testConnection" class="btn primary">接続テスト</button>
+        </div>
+      </div>
+
+      <!-- 接続テスト結果 -->
+      <div id="testResult" class="step">
+        <div id="testSuccess" class="result-box success" style="display: none;">
+          <span class="result-icon">✅</span>
+          <h2>接続成功！</h2>
+          <p>WordPressとの接続に成功しました</p>
+          <div class="connection-info">
+            <p>接続先: <span id="connectedUrl"></span></p>
+            <p>ユーザー: <span id="connectedUser"></span></p>
+          </div>
+          <button id="saveSettings" class="btn primary">設定を保存して完了</button>
+        </div>
+
+        <div id="testFailed" class="result-box error" style="display: none;">
+          <span class="result-icon">❌</span>
+          <h2>接続に失敗しました</h2>
+          <p id="testErrorMessage"></p>
+          <div class="error-hints">
+            <p>💡 考えられる原因:</p>
+            <ul id="errorHints"></ul>
+          </div>
+          <button id="retrySetup" class="btn secondary">設定を確認する</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 設定完了後: メイン画面 -->
+    <div id="mainScreen" class="main-screen" style="display: none;">
+      <div class="status-bar">
+        <span class="status-icon">✅</span>
+        <span>WordPressと接続中</span>
+      </div>
+
+      <div class="connection-detail">
+        <p>接続先: <span id="currentUrl"></span></p>
+      </div>
+
+      <div class="usage-box">
+        <h3>📝 使い方</h3>
+        <ol>
+          <li>ChatGPT・Claude・Geminiで記事を作成してもらう</li>
+          <li>「<code>```markdown</code>」で囲んだ形式で出力してもらう</li>
+          <li>記事の横に表示される<br>「📤 投稿」ボタンをクリック</li>
+        </ol>
+      </div>
+
+      <div class="settings-section">
+        <h3>投稿設定</h3>
+        <div class="setting-item">
+          <label>デフォルトの投稿状態</label>
+          <div class="radio-group">
+            <label><input type="radio" name="defaultStatus" value="draft" checked> 下書き</label>
+            <label><input type="radio" name="defaultStatus" value="publish"> 公開</label>
+          </div>
+        </div>
+        <div class="setting-item">
+          <label>
+            <input type="checkbox" id="autoCreateTerms">
+            存在しないカテゴリ・タグを自動作成
+          </label>
+        </div>
+      </div>
+
+      <div class="btn-group">
+        <button id="openSettings" class="btn secondary">設定を変更</button>
+        <button id="reTestConnection" class="btn secondary">接続テスト</button>
+      </div>
+    </div>
+
+    <!-- ローディング -->
+    <div id="loading" class="loading" style="display: none;">
+      <div class="spinner"></div>
+      <p>接続中...</p>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
