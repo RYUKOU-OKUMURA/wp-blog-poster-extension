@@ -42,14 +42,24 @@ class WordPressAPI {
   async request(endpoint, options = {}) {
     const url = this.buildUrl(endpoint);
     const headers = {
-      'Content-Type': 'application/json',
       ...options.headers
     };
-    if (this.token) {
-      headers['X-WPBP-Token'] = this.token;
-    } else if (this.auth) {
+
+    // POSTリクエストのみContent-Typeを設定（GETでは不要でCORS問題を起こす）
+    if (options.method === 'POST' || options.body) {
+      headers['Content-Type'] = 'application/json';
+    }
+
+    // トークン認証はURLパラメータ（buildUrl）で行う（カスタムヘッダーはサーバーでフィルタリングされる）
+    // Basic認証のみヘッダーを使用
+    if (!this.token && this.auth) {
       headers['Authorization'] = `Basic ${this.auth}`;
     }
+
+    // デバッグログ
+    console.log('[WPBP Debug] Request URL:', url);
+    console.log('[WPBP Debug] Token present:', !!this.token, 'Token length:', this.token?.length);
+    console.log('[WPBP Debug] Headers:', JSON.stringify(headers, null, 2));
 
     try {
       const response = await fetch(url, {
@@ -57,8 +67,17 @@ class WordPressAPI {
         headers
       });
 
+      console.log('[WPBP Debug] Response status:', response.status);
+
       if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
+        const errorText = await response.text();
+        console.log('[WPBP Debug] Error response body:', errorText);
+        let error = {};
+        try {
+          error = JSON.parse(errorText);
+        } catch (e) {
+          error = { message: errorText };
+        }
         throw {
           status: response.status,
           code: error.code || 'UNKNOWN',
@@ -183,11 +202,15 @@ class WordPressAPI {
       const formData = new FormData();
       formData.append('file', blob, filename);
 
+      // トークン認証はURLパラメータ（buildUrl）で行う
+      const headers = {};
+      if (!this.token && this.auth) {
+        headers['Authorization'] = `Basic ${this.auth}`;
+      }
+
       const response = await fetch(url, {
         method: 'POST',
-        headers: this.token
-          ? { 'X-WPBP-Token': this.token }
-          : { 'Authorization': `Basic ${this.auth}` },
+        headers,
         body: formData
       });
 

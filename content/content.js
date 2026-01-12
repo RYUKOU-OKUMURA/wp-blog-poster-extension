@@ -42,23 +42,81 @@
   }
 
   /**
+   * 現在のサイトを判定
+   */
+  function detectPlatform() {
+    const host = window.location.hostname;
+    if (host.includes('chat.openai.com') || host.includes('chatgpt.com')) return 'chatgpt';
+    if (host.includes('claude.ai')) return 'claude';
+    if (host.includes('gemini.google.com')) return 'gemini';
+    return 'unknown';
+  }
+
+  /**
+   * プラットフォーム別のアシスタントメッセージセレクタ
+   */
+  function getAssistantMessageSelector(platform) {
+    switch (platform) {
+      case 'chatgpt':
+        // ChatGPTのアシスタントメッセージ
+        return '[data-message-author-role="assistant"] .markdown';
+      case 'claude':
+        // Claudeのアシスタントメッセージ
+        return '[data-is-streaming="false"].font-claude-message .grid-cols-1, .font-claude-message .prose';
+      case 'gemini':
+        // Geminiのアシスタントメッセージ（最も外側の要素のみ）
+        return '.model-response-text';
+      default:
+        return null;
+    }
+  }
+
+  /**
    * マークダウンコードブロックをスキャン
    */
   function scanForMarkdownBlocks() {
-    // コードブロックを検索
-    const codeBlocks = document.querySelectorAll('pre code, pre');
+    const platform = detectPlatform();
+    let foundInPlatformMessage = false;
 
-    codeBlocks.forEach(block => {
-      if (processedBlocks.has(block)) return;
+    // 1. プラットフォーム固有のアシスタントメッセージを検索
+    const assistantSelector = getAssistantMessageSelector(platform);
+    if (assistantSelector) {
+      const messages = document.querySelectorAll(assistantSelector);
+      messages.forEach(msg => {
+        if (processedBlocks.has(msg)) return;
+        // 既にボタンがある要素はスキップ
+        if (msg.querySelector('.wp-post-btn-wrapper')) return;
 
-      const content = block.textContent || '';
+        const content = msg.innerText || msg.textContent || '';
 
-      // マークダウンコンテンツかチェック
-      if (isMarkdownContent(content)) {
-        processedBlocks.add(block);
-        addPostButton(block, content);
-      }
-    });
+        // マークダウンコンテンツかチェック
+        if (isMarkdownContent(content)) {
+          processedBlocks.add(msg);
+          addPostButton(msg, content, platform);
+          foundInPlatformMessage = true;
+        }
+      });
+    }
+
+    // 2. プラットフォーム固有で見つからなかった場合のみ、コードブロックを検索
+    if (!foundInPlatformMessage) {
+      const codeBlocks = document.querySelectorAll('pre code, pre');
+
+      codeBlocks.forEach(block => {
+        if (processedBlocks.has(block)) return;
+        // 既にボタンがある親要素はスキップ
+        if (block.closest('.wp-post-btn-wrapper')) return;
+        if (block.closest('[data-message-author-role="assistant"]')?.querySelector('.wp-post-btn-wrapper')) return;
+
+        const content = block.textContent || '';
+
+        // マークダウンコンテンツかチェック
+        if (isMarkdownContent(content)) {
+          processedBlocks.add(block);
+          addPostButton(block, content, platform);
+        }
+      });
+    }
   }
 
   /**
@@ -85,13 +143,20 @@
   /**
    * 投稿ボタンを追加
    */
-  function addPostButton(block, content) {
-    // 親要素（pre）を取得
-    const preElement = block.tagName === 'PRE' ? block : block.closest('pre');
-    if (!preElement) return;
+  function addPostButton(block, content, platform) {
+    // ボタンを配置する要素を決定
+    let targetElement = block;
+
+    // コードブロックの場合はpre要素を使用
+    if (block.tagName === 'CODE' || block.tagName === 'PRE') {
+      targetElement = block.tagName === 'PRE' ? block : block.closest('pre');
+      if (!targetElement) return;
+    }
 
     // 既にボタンがあるかチェック
-    if (preElement.querySelector('.wp-post-btn-wrapper')) return;
+    if (targetElement.querySelector('.wp-post-btn-wrapper')) return;
+    // 親要素にも既にボタンがないかチェック（重複防止）
+    if (targetElement.closest('.wp-post-btn-wrapper')) return;
 
     // ラッパーを作成
     const wrapper = document.createElement('div');
@@ -111,9 +176,9 @@
 
     wrapper.appendChild(button);
 
-    // preの中に配置
-    preElement.style.position = 'relative';
-    preElement.appendChild(wrapper);
+    // 要素内に配置
+    targetElement.style.position = 'relative';
+    targetElement.appendChild(wrapper);
   }
 
   /**

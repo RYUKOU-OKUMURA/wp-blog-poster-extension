@@ -89,7 +89,7 @@ function wpbp_rest_authentication_errors($result) {
 
   $GLOBALS['wpbp_token_valid'] = true;
   wp_set_current_user($validated_user_id);
-  return $result;
+  return true;  // 認証成功を明示的に返す（nullだと後続の認証チェックが実行される）
 }
 add_filter('rest_authentication_errors', 'wpbp_rest_authentication_errors');
 
@@ -115,6 +115,7 @@ function wpbp_limit_routes($result, $server, $request) {
     array('#^/wp/v2/tags#', array('GET', 'POST')),
     array('#^/wp/v2/media#', array('POST')),
     array('#^/wp/v2/posts#', array('POST')),
+    array('#^/wpbp/v1/debug$#', array('GET')),
   );
 
   foreach ($allowed as $rule) {
@@ -231,3 +232,52 @@ function wpbp_revoke_token() {
   exit;
 }
 add_action('admin_post_wpbp_revoke_token', 'wpbp_revoke_token');
+
+// デバッグ用エンドポイント（認証不要）
+function wpbp_register_debug_endpoint() {
+  register_rest_route('wpbp/v1', '/debug', array(
+    'methods' => 'GET',
+    'callback' => 'wpbp_debug_callback',
+    'permission_callback' => '__return_true',
+  ));
+}
+add_action('rest_api_init', 'wpbp_register_debug_endpoint');
+
+function wpbp_debug_callback($request) {
+  $token_from_header = '';
+  $token_from_get = '';
+  $headers_received = array();
+
+  // $_SERVER からヘッダーを取得
+  if (isset($_SERVER['HTTP_X_WPBP_TOKEN'])) {
+    $token_from_header = $_SERVER['HTTP_X_WPBP_TOKEN'];
+  }
+
+  // getallheaders() からヘッダーを取得
+  if (function_exists('getallheaders')) {
+    $headers_received = getallheaders();
+  }
+
+  // $_GET からトークンを取得
+  if (isset($_GET['wpbp_token'])) {
+    $token_from_get = $_GET['wpbp_token'];
+  }
+
+  // プラグインの関数でトークンを取得
+  $token_from_function = wpbp_get_request_token();
+
+  // トークンデータが保存されているか確認
+  $token_data = get_option(WPBP_OPTION_KEY);
+  $has_stored_token = !empty($token_data['hash']) && !empty($token_data['user_id']);
+
+  return array(
+    'plugin_active' => true,
+    'token_from_header_server' => $token_from_header ? substr($token_from_header, 0, 8) . '...' : '(empty)',
+    'token_from_get' => $token_from_get ? substr($token_from_get, 0, 8) . '...' : '(empty)',
+    'token_from_function' => $token_from_function ? substr($token_from_function, 0, 8) . '...' : '(empty)',
+    'has_stored_token' => $has_stored_token,
+    'stored_user_id' => $has_stored_token ? $token_data['user_id'] : null,
+    'headers_x_wpbp' => isset($headers_received['X-WPBP-Token']) ? substr($headers_received['X-WPBP-Token'], 0, 8) . '...' : '(not found)',
+    'all_header_keys' => array_keys($headers_received),
+  );
+}
