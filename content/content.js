@@ -146,8 +146,7 @@
           const inlineTarget = findInlineTarget(block);
           if (processedBlocks.has(block)) {
             if (inlineTarget) {
-              updateActionGroupSize(block, inlineTarget);
-              updateActionGroupSticky(block, inlineTarget);
+              syncActionGroupLayout(block, inlineTarget);
               syncInlineButton(block, inlineTarget);
             }
             return;
@@ -190,8 +189,7 @@
 
         if (processedBlocks.has(block)) {
           if (inlineTarget) {
-            updateActionGroupSize(block, inlineTarget);
-            updateActionGroupSticky(block, inlineTarget);
+            syncActionGroupLayout(block, inlineTarget);
             syncInlineButton(block, inlineTarget);
           }
           return;
@@ -266,8 +264,7 @@
       if (toolbar && !toolbar.querySelector('.wp-post-btn-inline')) {
         baseButton.classList.add('wp-post-btn-inline');
         inlineTarget.button.insertAdjacentElement('beforebegin', baseButton);
-        updateActionGroupSize(block, inlineTarget);
-        updateActionGroupSticky(block, inlineTarget);
+        syncActionGroupLayout(block, inlineTarget);
         attachedInline = true;
       }
     }
@@ -478,8 +475,7 @@
     existingButton.classList.add('wp-post-btn-inline');
     existingButton.textContent = '投稿';
     inlineTarget.button.insertAdjacentElement('beforebegin', existingButton);
-    updateActionGroupSize(block, inlineTarget);
-    updateActionGroupSticky(block, inlineTarget);
+    syncActionGroupLayout(block, inlineTarget);
     wrapper.remove();
   }
 
@@ -495,6 +491,11 @@
     if (!toolbar) return;
     const scrollContainer = findScrollableContainer(block);
     toolbar.classList.toggle('wp-post-action-group-sticky', !!scrollContainer);
+  }
+
+  function syncActionGroupLayout(block, inlineTarget) {
+    updateActionGroupSize(block, inlineTarget);
+    updateActionGroupSticky(block, inlineTarget);
   }
 
   function isExpandedEditor(block) {
@@ -779,6 +780,7 @@
     let expandedToolbar = null;
     const mainSelectionState = { start: 0, end: 0 };
     const expandedSelectionState = { start: 0, end: 0 };
+    const selectionEvents = ['keyup', 'click', 'select', 'mouseup', 'focus'];
 
     if (editorModalBody && mainToolbar) {
       expandedToolbar = mainToolbar.cloneNode(true);
@@ -985,6 +987,26 @@
       updateCharCount(editor.value);
     }
 
+    function bindSelectionTracking(editor) {
+      if (!editor) return;
+      selectionEvents.forEach((eventName) => {
+        editor.addEventListener(eventName, () => captureSelection(editor));
+      });
+      editor.addEventListener('input', () => {
+        handleEditorInput(editor);
+      });
+      captureSelection(editor);
+    }
+
+    function bindTrigger(button, editor, handler) {
+      if (!button) return;
+      button.addEventListener('mousedown', (event) => {
+        captureSelection(editor);
+        event.preventDefault();
+      });
+      button.addEventListener('click', handler);
+    }
+
     function handleToolbarAction(action, editor) {
       switch (action) {
         case 'bold':
@@ -1039,50 +1061,14 @@
       });
     }
 
-    if (bodyEditor) {
-      const selectionEvents = ['keyup', 'click', 'select', 'mouseup', 'focus'];
-      selectionEvents.forEach((eventName) => {
-        bodyEditor.addEventListener(eventName, () => captureSelection(bodyEditor));
-      });
-      bodyEditor.addEventListener('input', () => {
-        handleEditorInput(bodyEditor);
-      });
-      captureSelection(bodyEditor);
-    }
-
-    if (expandedEditor) {
-      const selectionEvents = ['keyup', 'click', 'select', 'mouseup', 'focus'];
-      selectionEvents.forEach((eventName) => {
-        expandedEditor.addEventListener(eventName, () => captureSelection(expandedEditor));
-      });
-      expandedEditor.addEventListener('input', () => {
-        handleEditorInput(expandedEditor);
-      });
-      captureSelection(expandedEditor);
-    }
+    bindSelectionTracking(bodyEditor);
+    bindSelectionTracking(expandedEditor);
 
     bindToolbar(mainToolbar, bodyEditor);
     bindToolbar(expandedToolbar, expandedEditor);
 
-    if (previewBtn) {
-      previewBtn.addEventListener('mousedown', (event) => {
-        captureSelection(bodyEditor);
-        event.preventDefault();
-      });
-      previewBtn.addEventListener('click', () => {
-        openPreview();
-      });
-    }
-
-    if (expandBtn) {
-      expandBtn.addEventListener('mousedown', (event) => {
-        captureSelection(bodyEditor);
-        event.preventDefault();
-      });
-      expandBtn.addEventListener('click', () => {
-        openEditorModal();
-      });
-    }
+    bindTrigger(previewBtn, bodyEditor, openPreview);
+    bindTrigger(expandBtn, bodyEditor, openEditorModal);
 
     if (editorClose) {
       editorClose.addEventListener('click', () => {
@@ -1324,7 +1310,6 @@
   function parseSimpleYaml(yaml, result) {
     const lines = yaml.split('\n');
     let currentKey = null;
-    let currentArray = null;
 
     for (const line of lines) {
       const trimmed = line.trim();

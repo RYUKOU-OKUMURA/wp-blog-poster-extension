@@ -159,79 +159,57 @@ class WordPressAPI {
   }
 
   /**
-   * カテゴリを検索
+   * タームを検索
    */
-  async searchCategories(name) {
-    const categories = await this.request(`/categories?search=${encodeURIComponent(name)}&per_page=100`);
-    return categories.find(cat => cat.name.toLowerCase() === name.toLowerCase());
+  async searchTerm(type, name) {
+    const endpoint = type === 'category' ? 'categories' : 'tags';
+    const terms = await this.request(`/${endpoint}?search=${encodeURIComponent(name)}&per_page=100`);
+    return terms.find(term => term.name.toLowerCase() === name.toLowerCase());
   }
 
   /**
-   * タグを検索
+   * タームを作成
    */
-  async searchTags(name) {
-    const tags = await this.request(`/tags?search=${encodeURIComponent(name)}&per_page=100`);
-    return tags.find(tag => tag.name.toLowerCase() === name.toLowerCase());
-  }
-
-  /**
-   * カテゴリを作成
-   */
-  async createCategory(name) {
-    return this.request('/categories', {
+  async createTerm(type, name) {
+    const endpoint = type === 'category' ? 'categories' : 'tags';
+    return this.request(`/${endpoint}`, {
       method: 'POST',
       body: JSON.stringify({ name })
     });
   }
 
   /**
-   * タグを作成
+   * ターム名からIDを解決
    */
-  async createTag(name) {
-    return this.request('/tags', {
-      method: 'POST',
-      body: JSON.stringify({ name })
-    });
+  async resolveTermIds(type, names, createIfNotExists = false) {
+    const ids = [];
+    for (const name of names) {
+      if (!name) continue;
+      try {
+        let term = await this.searchTerm(type, name);
+        if (!term && createIfNotExists) {
+          term = await this.createTerm(type, name);
+        }
+        if (term) {
+          ids.push(term.id);
+        }
+      } catch {}
+    }
+    return ids;
   }
 
   /**
    * カテゴリ名からIDを解決
    */
   async resolveCategoryIds(names, createIfNotExists = false) {
-    const ids = [];
-    for (const name of names) {
-      if (!name) continue;
-      try {
-        let category = await this.searchCategories(name);
-        if (!category && createIfNotExists) {
-          category = await this.createCategory(name);
-        }
-        if (category) {
-          ids.push(category.id);
-        }
-      } catch {}
-    }
-    return ids;
+    return this.resolveTermIds('category', names, createIfNotExists);
   }
 
   /**
    * タグ名からIDを解決
    */
   async resolveTagIds(names, createIfNotExists = false) {
-    const ids = [];
-    for (const name of names) {
-      if (!name) continue;
-      try {
-        let tag = await this.searchTags(name);
-        if (!tag && createIfNotExists) {
-          tag = await this.createTag(name);
-        }
-        if (tag) {
-          ids.push(tag.id);
-        }
-      } catch {}
-    }
-    return ids;
+    return this.resolveTermIds('tag', names, createIfNotExists);
   }
 
   /**

@@ -127,13 +127,23 @@ function setupEventListeners() {
 /**
  * Show specific step
  */
-function showStep(step) {
+function setActiveStep(stepId, stepIndex) {
   document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
-  const stepEl = document.getElementById(`step${step}`);
+  const stepEl = document.getElementById(stepId);
   if (stepEl) {
     stepEl.classList.add('active');
   }
-  currentStep = step;
+  if (typeof stepIndex === 'number') {
+    currentStep = stepIndex;
+  }
+}
+
+function showStep(step) {
+  setActiveStep(`step${step}`, step);
+}
+
+function showResultStep() {
+  setActiveStep('testResult');
 }
 
 /**
@@ -318,8 +328,7 @@ async function testConnection() {
     });
 
     showLoading(false);
-    showStep('Result');
-    elements.testResult.classList.add('active');
+    showResultStep();
 
     if (response.success) {
       elements.testSuccess.style.display = 'block';
@@ -339,8 +348,7 @@ async function testConnection() {
 
 function showTestFailure(message, hints) {
   showLoading(false);
-  showStep('Result');
-  elements.testResult.classList.add('active');
+  showResultStep();
   elements.testSuccess.style.display = 'none';
   elements.testFailed.style.display = 'block';
   elements.testErrorMessage.textContent = message;
