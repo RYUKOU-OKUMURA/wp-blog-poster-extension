@@ -65,6 +65,13 @@
   gap: 6px;
 }
 
+.wp-post-action-group-sticky {
+  position: sticky;
+  top: 6px;
+  z-index: 6;
+  align-self: flex-start;
+}
+
 .wp-post-action-group-large .wp-post-btn-inline {
   padding: 6px 12px;
   font-size: 12px;

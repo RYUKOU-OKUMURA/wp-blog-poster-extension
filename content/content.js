@@ -43,6 +43,12 @@
       subtree: true
     });
 
+    let resizeTimer = null;
+    window.addEventListener('resize', () => {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(scanForMarkdownBlocks, 300);
+    });
+
   }
 
   /**
@@ -141,6 +147,7 @@
           if (processedBlocks.has(block)) {
             if (inlineTarget) {
               updateActionGroupSize(block, inlineTarget);
+              updateActionGroupSticky(block, inlineTarget);
               syncInlineButton(block, inlineTarget);
             }
             return;
@@ -184,6 +191,7 @@
         if (processedBlocks.has(block)) {
           if (inlineTarget) {
             updateActionGroupSize(block, inlineTarget);
+            updateActionGroupSticky(block, inlineTarget);
             syncInlineButton(block, inlineTarget);
           }
           return;
@@ -260,11 +268,12 @@
     });
 
     if (inlineTarget) {
-      const toolbar = resolveActionContainer(inlineTarget.button);
+      const toolbar = resolveActionContainer(inlineTarget.button, block);
       if (!toolbar || toolbar.querySelector('.wp-post-btn-inline')) return;
       button.classList.add('wp-post-btn-inline');
       inlineTarget.button.insertAdjacentElement('beforebegin', button);
       updateActionGroupSize(block, inlineTarget);
+      updateActionGroupSticky(block, inlineTarget);
       return;
     }
 
@@ -328,9 +337,35 @@
     return null;
   }
 
-  function resolveActionContainer(button) {
+  function resolveActionContainer(button, block) {
     if (!button || !button.parentElement) return null;
     markCopyButton(button);
+    const scrollContainer = block ? findScrollableContainer(block) : null;
+    if (scrollContainer) {
+      let group = scrollContainer.querySelector('.wp-post-action-group');
+      if (!group) {
+        group = document.createElement('div');
+        group.className = 'wp-post-action-group wp-post-action-group-sticky';
+        scrollContainer.insertBefore(group, scrollContainer.firstChild);
+      } else {
+        group.classList.add('wp-post-action-group-sticky');
+      }
+
+      const previousParent = button.parentElement;
+      if (!group.contains(button)) {
+        group.appendChild(button);
+      }
+      if (previousParent && previousParent !== group) {
+        const inlineButtons = previousParent.querySelectorAll('.wp-post-btn-inline');
+        inlineButtons.forEach((inlineButton) => {
+          if (!group.contains(inlineButton)) {
+            group.insertBefore(inlineButton, button);
+          }
+        });
+      }
+      return group;
+    }
+
     const parent = button.parentElement;
     const existingGroup = parent.querySelector('.wp-post-action-group');
     if (existingGroup) return existingGroup;
@@ -361,7 +396,7 @@
   function syncInlineButton(block, inlineTarget) {
     const targetElement = resolveTargetElement(block);
     if (!targetElement) return;
-    const toolbar = resolveActionContainer(inlineTarget.button);
+    const toolbar = resolveActionContainer(inlineTarget.button, block);
     if (!toolbar) return;
     const existingInline = toolbar.querySelector('.wp-post-btn-inline');
     if (existingInline) return;
@@ -375,14 +410,22 @@
     existingButton.textContent = '投稿';
     inlineTarget.button.insertAdjacentElement('beforebegin', existingButton);
     updateActionGroupSize(block, inlineTarget);
+    updateActionGroupSticky(block, inlineTarget);
     wrapper.remove();
   }
 
   function updateActionGroupSize(block, inlineTarget) {
-    const toolbar = resolveActionContainer(inlineTarget.button);
+    const toolbar = resolveActionContainer(inlineTarget.button, block);
     if (!toolbar) return;
     const isLarge = isExpandedEditor(block);
     toolbar.classList.toggle('wp-post-action-group-large', isLarge);
+  }
+
+  function updateActionGroupSticky(block, inlineTarget) {
+    const toolbar = resolveActionContainer(inlineTarget.button, block);
+    if (!toolbar) return;
+    const scrollContainer = findScrollableContainer(block);
+    toolbar.classList.toggle('wp-post-action-group-sticky', !!scrollContainer);
   }
 
   function isExpandedEditor(block) {
@@ -392,12 +435,22 @@
   }
 
   function findEditorContainer(block) {
+    return findScrollableContainer(block) || resolveTargetElement(block);
+  }
+
+  function findScrollableContainer(block) {
     let current = resolveTargetElement(block);
+    const blockPre = block && block.closest ? block.closest('pre') : null;
     let depth = 0;
     const maxDepth = 10;
 
     while (current && depth < maxDepth) {
       if (current instanceof HTMLElement) {
+        if (blockPre && !blockPre.contains(current)) {
+          current = current.parentElement;
+          depth += 1;
+          continue;
+        }
         const className = current.className || '';
         if (typeof className === 'string' && /overflow-y-(auto|scroll)/.test(className)) {
           return current;
@@ -411,7 +464,7 @@
       depth += 1;
     }
 
-    return resolveTargetElement(block);
+    return null;
   }
 
 
