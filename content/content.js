@@ -250,12 +250,12 @@
       tags: initialTags,
       slug: metadata.slug,
       excerpt: metadata.excerpt,
-      bodyPreview: processedBody.substring(0, 300),
+      body: processedBody,
       charCount: processedBody.length,
       defaultStatus: isScheduledByFrontMatter ? 'future' : defaultStatus,
       scheduleAt,
       wpUrl,
-      onConfirm: async ({ status, scheduleAt }) => {
+      onConfirm: async ({ status, scheduleAt, body }) => {
         showDialogLoading(dialog, true);
 
         try {
@@ -269,7 +269,7 @@
           }
 
           // Markdown to HTML
-          const htmlContent = convertMarkdownToHtml(processedBody);
+          const htmlContent = convertMarkdownToHtml(body);
 
           const result = await chrome.runtime.sendMessage({
             type: 'CREATE_POST',
@@ -360,8 +360,27 @@
             <p class="wp-form-error" id="wpScheduleError" style="display: none;"></p>
           </div>
           <div class="wp-form-group">
-            <label>本文プレビュー (${options.charCount.toLocaleString()}文字)</label>
-            <div class="wp-preview">${escapeHtml(options.bodyPreview)}...</div>
+            <div class="wp-editor-header">
+              <label for="wpBody">本文（Markdown）</label>
+              <span class="wp-char-count" id="wpCharCount">${options.charCount.toLocaleString()}文字</span>
+            </div>
+            <div class="wp-editor-toolbar" role="toolbar" aria-label="Markdown編集">
+              <button type="button" class="wp-tool-btn" data-action="bold" title="太字">B</button>
+              <button type="button" class="wp-tool-btn" data-action="italic" title="斜体">I</button>
+              <button type="button" class="wp-tool-btn" data-action="heading" title="見出し">H2</button>
+              <button type="button" class="wp-tool-btn" data-action="link" title="リンク">Link</button>
+              <button type="button" class="wp-tool-btn" data-action="ul" title="箇条書き">-</button>
+              <button type="button" class="wp-tool-btn" data-action="ol" title="番号リスト">1.</button>
+              <button type="button" class="wp-tool-btn" data-action="quote" title="引用">&gt;</button>
+              <button type="button" class="wp-tool-btn" data-action="code" title="インラインコード">&#96;</button>
+              <button type="button" class="wp-tool-btn" data-action="codeblock" title="コードブロック">Code</button>
+              <button type="button" class="wp-tool-btn" data-action="hr" title="区切り線">HR</button>
+            </div>
+            <textarea class="wp-textarea" id="wpBody" rows="9">${escapeHtml(options.body || '')}</textarea>
+            <div class="wp-preview-actions">
+              <button type="button" class="wp-tool-btn wp-preview-btn" data-preview="toggle">プレビュー</button>
+              <button type="button" class="wp-tool-btn wp-expand-btn" data-expand="toggle">拡大</button>
+            </div>
           </div>
         </div>
       </div>
@@ -378,9 +397,33 @@
 
     overlay.appendChild(dialog);
 
+    const previewOverlay = document.createElement('div');
+    previewOverlay.className = 'wp-preview-overlay';
+    previewOverlay.style.display = 'none';
+    previewOverlay.innerHTML = `
+      <div class="wp-preview-modal" role="dialog" aria-modal="true" aria-label="プレビュー">
+        <div class="wp-preview-header">
+          <h3>プレビュー</h3>
+          <button type="button" class="wp-preview-close" title="閉じる">×</button>
+        </div>
+        <div class="wp-preview-body">
+          <div class="wp-preview-content" id="wpPreviewContent"></div>
+        </div>
+      </div>
+    `;
+    overlay.appendChild(previewOverlay);
+
     const scheduleGroup = overlay.querySelector('#wpScheduleGroup');
     const scheduleInput = overlay.querySelector('#wpScheduleAt');
     const scheduleError = overlay.querySelector('#wpScheduleError');
+    const bodyEditor = overlay.querySelector('#wpBody');
+    const charCount = overlay.querySelector('#wpCharCount');
+    const previewBtn = overlay.querySelector('.wp-preview-btn');
+    const expandBtn = overlay.querySelector('.wp-expand-btn');
+    const previewContent = overlay.querySelector('#wpPreviewContent');
+    const previewClose = overlay.querySelector('.wp-preview-close');
+    const selectionState = { start: 0, end: 0 };
+    let editorExpanded = false;
 
     function updateScheduleVisibility() {
       const status = overlay.querySelector('input[name="wpStatus"]:checked')?.value;
@@ -397,6 +440,231 @@
     });
     updateScheduleVisibility();
 
+    function updateCharCount() {
+      if (!bodyEditor || !charCount) return;
+      charCount.textContent = `${bodyEditor.value.length.toLocaleString()}文字`;
+    }
+
+    function setEditorExpanded(expanded) {
+      editorExpanded = expanded;
+      overlay.classList.toggle('wp-editor-expanded', expanded);
+      if (expandBtn) {
+        expandBtn.textContent = expanded ? '縮小' : '拡大';
+      }
+    }
+
+    function openPreview() {
+      if (!previewOverlay || !previewContent || !bodyEditor) return;
+      previewContent.innerHTML = convertMarkdownToHtml(bodyEditor.value);
+      previewOverlay.style.display = 'flex';
+    }
+
+    function closePreview() {
+      if (!previewOverlay) return;
+      previewOverlay.style.display = 'none';
+    }
+
+    function captureSelection() {
+      if (!bodyEditor) return;
+      if (typeof bodyEditor.selectionStart === 'number') {
+        selectionState.start = bodyEditor.selectionStart;
+        selectionState.end = bodyEditor.selectionEnd || bodyEditor.selectionStart;
+      }
+    }
+
+    function getSelectionRange() {
+      if (!bodyEditor) return { start: 0, end: 0 };
+      if (document.activeElement !== bodyEditor) {
+        return { start: selectionState.start, end: selectionState.end };
+      }
+      return {
+        start: typeof bodyEditor.selectionStart === 'number' ? bodyEditor.selectionStart : selectionState.start,
+        end: typeof bodyEditor.selectionEnd === 'number' ? bodyEditor.selectionEnd : selectionState.end
+      };
+    }
+
+    function focusEditorWithoutScroll() {
+      if (!bodyEditor) return;
+      try {
+        bodyEditor.focus({ preventScroll: true });
+      } catch {
+        bodyEditor.focus();
+      }
+    }
+
+    function updateEditorValue(nextValue, selectionStart, selectionEnd) {
+      if (!bodyEditor) return;
+      const scrollTop = bodyEditor.scrollTop;
+      bodyEditor.value = nextValue;
+      focusEditorWithoutScroll();
+      bodyEditor.setSelectionRange(selectionStart, selectionEnd);
+      bodyEditor.scrollTop = scrollTop;
+      selectionState.start = selectionStart;
+      selectionState.end = selectionEnd;
+      updateCharCount();
+    }
+
+    function wrapSelection(before, after) {
+      if (!bodyEditor) return;
+      const value = bodyEditor.value;
+      const { start, end } = getSelectionRange();
+      const selected = value.slice(start, end);
+      const insert = `${before}${selected}${after}`;
+      const nextValue = value.slice(0, start) + insert + value.slice(end);
+      const cursorStart = start + before.length;
+      const cursorEnd = cursorStart + selected.length;
+      updateEditorValue(nextValue, cursorStart, cursorEnd);
+    }
+
+    function insertLink() {
+      if (!bodyEditor) return;
+      const value = bodyEditor.value;
+      const { start, end } = getSelectionRange();
+      const selected = value.slice(start, end);
+      const text = selected || 'text';
+      const url = 'https://';
+      const insert = `[${text}](${url})`;
+      const nextValue = value.slice(0, start) + insert + value.slice(end);
+      const urlStart = start + 2 + text.length;
+      const urlEnd = urlStart + url.length;
+      updateEditorValue(nextValue, urlStart, urlEnd);
+    }
+
+    function prefixLines(prefix, ordered = false) {
+      if (!bodyEditor) return;
+      const value = bodyEditor.value;
+      const { start, end } = getSelectionRange();
+      const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+      const lineEnd = (() => {
+        const index = value.indexOf('\n', end);
+        return index === -1 ? value.length : index;
+      })();
+      const block = value.slice(lineStart, lineEnd);
+      const lines = block.split('\n');
+      const updated = lines.map((line, idx) => {
+        if (ordered) return `${idx + 1}. ${line}`;
+        return `${prefix}${line}`;
+      }).join('\n');
+      const nextValue = value.slice(0, lineStart) + updated + value.slice(lineEnd);
+      updateEditorValue(nextValue, lineStart, lineStart + updated.length);
+    }
+
+    function insertCodeBlock() {
+      if (!bodyEditor) return;
+      const value = bodyEditor.value;
+      const { start, end } = getSelectionRange();
+      const selected = value.slice(start, end);
+      const before = '```\n';
+      const after = '\n```';
+      const insert = selected ? `${before}${selected}${after}` : `${before}${after}`;
+      const nextValue = value.slice(0, start) + insert + value.slice(end);
+      const cursorStart = start + before.length;
+      const cursorEnd = selected ? cursorStart + selected.length : cursorStart;
+      updateEditorValue(nextValue, cursorStart, cursorEnd);
+    }
+
+    function insertHorizontalRule() {
+      if (!bodyEditor) return;
+      const value = bodyEditor.value;
+      const { start, end } = getSelectionRange();
+      let insert = '---';
+      if (start > 0 && value[start - 1] !== '\n') {
+        insert = `\n${insert}`;
+      }
+      insert = `${insert}\n`;
+      const nextValue = value.slice(0, start) + insert + value.slice(end);
+      const cursor = start + insert.length;
+      updateEditorValue(nextValue, cursor, cursor);
+    }
+
+    if (bodyEditor) {
+      const selectionEvents = ['keyup', 'click', 'select', 'mouseup', 'focus'];
+      selectionEvents.forEach((eventName) => {
+        bodyEditor.addEventListener(eventName, captureSelection);
+      });
+      bodyEditor.addEventListener('input', () => {
+        captureSelection();
+        updateCharCount();
+      });
+      captureSelection();
+    }
+
+    if (previewBtn) {
+      previewBtn.addEventListener('click', () => {
+        openPreview();
+      });
+    }
+
+    if (expandBtn) {
+      expandBtn.addEventListener('click', () => {
+        setEditorExpanded(!editorExpanded);
+      });
+    }
+
+    if (previewClose) {
+      previewClose.addEventListener('click', () => {
+        closePreview();
+        focusEditorWithoutScroll();
+      });
+    }
+
+    if (previewOverlay) {
+      previewOverlay.addEventListener('click', (event) => {
+        if (event.target === previewOverlay) {
+          closePreview();
+          focusEditorWithoutScroll();
+        }
+      });
+    }
+
+    overlay.querySelectorAll('.wp-tool-btn').forEach((button) => {
+      button.addEventListener('mousedown', (event) => {
+        captureSelection();
+        event.preventDefault();
+      });
+    });
+
+    overlay.querySelectorAll('.wp-tool-btn[data-action]').forEach((button) => {
+      button.addEventListener('click', () => {
+        focusEditorWithoutScroll();
+        const action = button.getAttribute('data-action');
+        switch (action) {
+          case 'bold':
+            wrapSelection('**', '**');
+            break;
+          case 'italic':
+            wrapSelection('*', '*');
+            break;
+          case 'heading':
+            prefixLines('## ');
+            break;
+          case 'code':
+            wrapSelection('`', '`');
+            break;
+          case 'link':
+            insertLink();
+            break;
+          case 'ul':
+            prefixLines('- ');
+            break;
+          case 'ol':
+            prefixLines('', true);
+            break;
+          case 'quote':
+            prefixLines('> ');
+            break;
+          case 'codeblock':
+            insertCodeBlock();
+            break;
+          case 'hr':
+            insertHorizontalRule();
+            break;
+          default:
+            break;
+        }
+      });
+    });
+
     // イベントリスナー
     overlay.querySelector('.wp-dialog-close').addEventListener('click', options.onCancel);
     overlay.querySelector('.wp-cancel-btn').addEventListener('click', options.onCancel);
@@ -406,11 +674,13 @@
       const tags = overlay.querySelector('#wpTags').value.split(',').map(s => s.trim()).filter(Boolean);
       const status = overlay.querySelector('input[name="wpStatus"]:checked').value;
       const scheduleAt = scheduleInput?.value || '';
+      const body = bodyEditor ? bodyEditor.value : (options.body || '');
 
       // オプションを更新
       options.title = title;
       options.categories = categories;
       options.tags = tags;
+      options.body = body;
 
       if (status === 'future') {
         if (!scheduleAt) {
@@ -425,7 +695,7 @@
         }
       }
 
-      options.onConfirm({ status, scheduleAt });
+      options.onConfirm({ status, scheduleAt, body });
     });
 
     // オーバーレイクリックで閉じる
