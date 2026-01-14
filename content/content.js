@@ -255,10 +255,45 @@
     if (targetElement.closest('.wp-post-btn-wrapper')) return;
 
     const inlineTarget = findInlineTarget(block);
+    const infoTarget = findInfoSourceTarget(block, platform);
+    const baseButton = createPostButton(inlineTarget ? '投稿' : '📤 WPに投稿', content);
+
+    let attachedInline = false;
+    let attachedInfo = false;
+
+    if (inlineTarget) {
+      const toolbar = resolveActionContainer(inlineTarget.button, block);
+      if (toolbar && !toolbar.querySelector('.wp-post-btn-inline')) {
+        baseButton.classList.add('wp-post-btn-inline');
+        inlineTarget.button.insertAdjacentElement('beforebegin', baseButton);
+        updateActionGroupSize(block, inlineTarget);
+        updateActionGroupSticky(block, inlineTarget);
+        attachedInline = true;
+      }
+    }
+
+    if (infoTarget) {
+      attachedInfo = attachInfoPostButton(infoTarget, content);
+    }
+
+    if (attachedInline || attachedInfo) return;
+
+    // ラッパーを作成
+    const wrapper = document.createElement('div');
+    wrapper.className = 'wp-post-btn-wrapper';
+
+    wrapper.appendChild(baseButton);
+
+    // 要素内に配置
+    targetElement.style.position = 'relative';
+    targetElement.appendChild(wrapper);
+  }
+
+  function createPostButton(label, content) {
     const button = document.createElement('button');
     button.className = 'wp-post-btn';
     button.type = 'button';
-    button.textContent = inlineTarget ? '投稿' : '📤 WPに投稿';
+    button.textContent = label;
     button.title = 'WordPressに投稿';
 
     button.addEventListener('click', (e) => {
@@ -267,25 +302,27 @@
       showConfirmDialog(content);
     });
 
-    if (inlineTarget) {
-      const toolbar = resolveActionContainer(inlineTarget.button, block);
-      if (!toolbar || toolbar.querySelector('.wp-post-btn-inline')) return;
-      button.classList.add('wp-post-btn-inline');
-      inlineTarget.button.insertAdjacentElement('beforebegin', button);
-      updateActionGroupSize(block, inlineTarget);
-      updateActionGroupSticky(block, inlineTarget);
-      return;
+    return button;
+  }
+
+  function attachInfoPostButton(infoTarget, content) {
+    if (!infoTarget || !(infoTarget instanceof HTMLElement)) return false;
+    const parent = infoTarget.parentElement;
+    if (!parent) return false;
+    if (parent.querySelector('.wp-post-btn-info')) return false;
+
+    let wrapper = parent.querySelector('.wp-post-info-group');
+    if (!wrapper) {
+      wrapper = document.createElement('div');
+      wrapper.className = 'wp-post-info-group';
+      parent.insertBefore(wrapper, infoTarget);
+      wrapper.appendChild(infoTarget);
     }
 
-    // ラッパーを作成
-    const wrapper = document.createElement('div');
-    wrapper.className = 'wp-post-btn-wrapper';
-
-    wrapper.appendChild(button);
-
-    // 要素内に配置
-    targetElement.style.position = 'relative';
-    targetElement.appendChild(wrapper);
+    const infoButton = createPostButton('投稿', content);
+    infoButton.classList.add('wp-post-btn-inline', 'wp-post-btn-info');
+    wrapper.appendChild(infoButton);
+    return true;
   }
 
   function resolveTargetElement(block) {
@@ -332,6 +369,38 @@
       }
       current = container;
       depth += 1;
+    }
+
+    return null;
+  }
+
+  function findInfoSourceTarget(block, platform) {
+    if (platform !== 'chatgpt') return null;
+    const targetRoot = resolveTargetElement(block);
+    if (!targetRoot) return null;
+
+    let current = targetRoot;
+    let depth = 0;
+    const maxDepth = 10;
+
+    while (current && depth < maxDepth) {
+      const buttons = current.querySelectorAll('button');
+      for (const candidate of buttons) {
+        const text = (candidate.textContent || '').trim();
+        if (text.includes('情報源')) {
+          return candidate;
+        }
+      }
+      current = current.parentElement;
+      depth += 1;
+    }
+
+    const fallbackButtons = document.querySelectorAll('button');
+    for (const candidate of fallbackButtons) {
+      const text = (candidate.textContent || '').trim();
+      if (text.includes('情報源')) {
+        return candidate;
+      }
     }
 
     return null;

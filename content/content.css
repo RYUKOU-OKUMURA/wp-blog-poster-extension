@@ -83,6 +83,13 @@
   padding-bottom: 6px !important;
 }
 
+.wp-post-info-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
 /* ダイアログオーバーレイ */
 .wp-dialog-overlay {
   position: fixed;
