@@ -381,14 +381,16 @@ function getErrorHints(code) {
  * Handle save settings
  */
 async function handleSaveSettings() {
+  const current = await chrome.storage.local.get(['settings']);
+  const settings = current.settings || {};
   await chrome.storage.local.set({
     wpUrl: tempConfig.wpUrl,
     wpUser: tempConfig.wpUser,
     wpPassword: tempConfig.wpPassword,
     wpToken: tempConfig.wpToken,
     settings: {
-      defaultStatus: 'draft',
-      autoCreateTerms: false
+      defaultStatus: settings.defaultStatus || 'draft',
+      autoCreateTerms: settings.autoCreateTerms || false
     }
   });
 

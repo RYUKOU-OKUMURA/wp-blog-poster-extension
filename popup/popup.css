@@ -403,6 +403,7 @@ body {
 .radio-group {
   display: flex;
   gap: 16px;
+  flex-wrap: wrap;
 }
 
 .radio-group label {
