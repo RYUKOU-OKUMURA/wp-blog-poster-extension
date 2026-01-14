@@ -171,6 +171,12 @@
   margin-bottom: 6px;
 }
 
+.wp-editor-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .wp-char-count {
   font-size: 12px;
   color: #888;
@@ -227,12 +233,6 @@
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
-.wp-preview-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 6px;
-}
 
 .wp-form-hint {
   margin: 6px 0 0 0;

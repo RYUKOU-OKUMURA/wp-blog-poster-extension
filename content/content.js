@@ -362,7 +362,11 @@
           <div class="wp-form-group">
             <div class="wp-editor-header">
               <label for="wpBody">本文（Markdown）</label>
-              <span class="wp-char-count" id="wpCharCount">${options.charCount.toLocaleString()}文字</span>
+              <div class="wp-editor-header-actions">
+                <span class="wp-char-count" id="wpCharCount">${options.charCount.toLocaleString()}文字</span>
+                <button type="button" class="wp-tool-btn wp-preview-btn" data-preview="toggle">プレビュー</button>
+                <button type="button" class="wp-tool-btn wp-expand-btn" data-expand="toggle">拡大</button>
+              </div>
             </div>
             <div class="wp-editor-toolbar" role="toolbar" aria-label="Markdown編集">
               <button type="button" class="wp-tool-btn" data-action="bold" title="太字">B</button>
@@ -377,10 +381,6 @@
               <button type="button" class="wp-tool-btn" data-action="hr" title="区切り線">HR</button>
             </div>
             <textarea class="wp-textarea" id="wpBody" rows="9">${escapeHtml(options.body || '')}</textarea>
-            <div class="wp-preview-actions">
-              <button type="button" class="wp-tool-btn wp-preview-btn" data-preview="toggle">プレビュー</button>
-              <button type="button" class="wp-tool-btn wp-expand-btn" data-expand="toggle">拡大</button>
-            </div>
           </div>
         </div>
       </div>
