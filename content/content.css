@@ -59,6 +59,12 @@
   transform: translateY(0);
 }
 
+.wp-post-action-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 /* ダイアログオーバーレイ */
 .wp-dialog-overlay {
   position: fixed;

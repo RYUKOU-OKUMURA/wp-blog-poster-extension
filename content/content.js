@@ -92,12 +92,38 @@
   }
 
   /**
+   * 重複しないコードブロックを取得
+   */
+  function getUniqueCodeBlocks(root) {
+    const candidates = root.querySelectorAll('code.language-markdown, pre code, pre');
+    const unique = [];
+    const seen = new WeakSet();
+
+    candidates.forEach(node => {
+      const canonical = normalizeCodeBlock(node);
+      if (!canonical || seen.has(canonical)) return;
+      seen.add(canonical);
+      unique.push(canonical);
+    });
+
+    return unique;
+  }
+
+  function normalizeCodeBlock(node) {
+    if (!node || !node.tagName) return null;
+    if (node.tagName === 'PRE') {
+      const code = node.querySelector('code');
+      return code || node;
+    }
+    return node;
+  }
+
+  /**
    * マークダウンコードブロックをスキャン
    */
   function scanForMarkdownBlocks() {
     const platform = detectPlatform();
     const parentSelector = getParentContainerSelector(platform);
-    let foundInPlatformMessage = false;
 
     // 1. プラットフォーム固有のアシスタントメッセージを検索
     const assistantSelector = getAssistantMessageSelector(platform);
@@ -105,21 +131,25 @@
       const messages = document.querySelectorAll(assistantSelector);
       messages.forEach(msg => {
         // 先にメッセージ内のコードブロックを処理（コピー按钮の位置に追従させるため）
-        const blocks = msg.querySelectorAll('code.language-markdown, pre code, pre');
+        const blocks = getUniqueCodeBlocks(msg);
         let handledInMessage = false;
 
         blocks.forEach(block => {
-          if (processedBlocks.has(block)) return;
           const content = block.textContent || '';
-          if (isMarkdownContent(content)) {
-            processedBlocks.add(block);
-            addPostButton(block, content, platform);
-            handledInMessage = true;
+          if (!isMarkdownContent(content, block)) return;
+          const inlineTarget = findInlineTarget(block);
+          if (processedBlocks.has(block)) {
+            if (inlineTarget) {
+              syncInlineButton(block, inlineTarget);
+            }
+            return;
           }
+          processedBlocks.add(block);
+          addPostButton(block, content, platform);
+          handledInMessage = true;
         });
 
         if (handledInMessage) {
-          foundInPlatformMessage = true;
           return;
         }
 
@@ -134,20 +164,29 @@
         const content = msg.innerText || msg.textContent || '';
 
         // マークダウンコンテンツかチェック
-        if (isMarkdownContent(content)) {
+        if (isMarkdownContent(content, msg)) {
           processedBlocks.add(msg);
           addPostButton(msg, content, platform);
-          foundInPlatformMessage = true;
         }
       });
     }
 
-    // 2. プラットフォーム固有で見つからなかった場合のみ、コードブロックを検索
-    if (!foundInPlatformMessage) {
-      const codeBlocks = document.querySelectorAll('code.language-markdown, pre code, pre');
+    // 2. ページ全体のコードブロックも検索
+    {
+      const codeBlocks = getUniqueCodeBlocks(document);
 
       codeBlocks.forEach(block => {
-        if (processedBlocks.has(block)) return;
+        const content = block.textContent || '';
+        if (!isMarkdownContent(content, block)) return;
+        const inlineTarget = findInlineTarget(block);
+
+        if (processedBlocks.has(block)) {
+          if (inlineTarget) {
+            syncInlineButton(block, inlineTarget);
+          }
+          return;
+        }
+
         // 既にボタンがある親要素はスキップ
         if (block.closest('.wp-post-btn-wrapper')) return;
         if (parentSelector) {
@@ -155,13 +194,8 @@
           if (parent && parent.querySelector('.wp-post-btn-wrapper')) return;
         }
 
-        const content = block.textContent || '';
-
-        // マークダウンコンテンツかチェック
-        if (isMarkdownContent(content)) {
-          processedBlocks.add(block);
-          addPostButton(block, content, platform);
-        }
+        processedBlocks.add(block);
+        addPostButton(block, content, platform);
       });
     }
   }
@@ -169,8 +203,9 @@
   /**
    * マークダウンコンテンツかどうか判定
    */
-  function isMarkdownContent(content) {
+  function isMarkdownContent(content, element) {
     const trimmed = content.trim();
+    if (!trimmed) return false;
 
     // Front Matterがある（ブログ記事の可能性が高い）
     const hasFrontMatter = /^---\s*\n[\s\S]*?\n---/.test(trimmed);
@@ -184,7 +219,16 @@
     // 最低限の長さチェック（短すぎる場合は除外）
     const isLongEnough = trimmed.length > 200;
 
-    return (hasH1 || hasH2) && hasMarkdownSyntax && isLongEnough;
+    if ((hasH1 || hasH2) && hasMarkdownSyntax && isLongEnough) return true;
+
+    const hasHtmlArticleTags = /<(h1|h2|h3|p|div|img|ol|ul|li|nav|footer|section|article|script)\b/i.test(trimmed);
+    if (hasHtmlArticleTags && isLongEnough) return true;
+
+    if (element && element.classList && element.classList.contains('language-markdown') && isLongEnough) {
+      return true;
+    }
+
+    return false;
   }
 
   /**
@@ -192,15 +236,8 @@
    */
   function addPostButton(block, content, platform) {
     // ボタンを配置する要素を決定
-    let targetElement = block;
-
-    // コードブロックの場合はpre要素を使用
-    if (block.tagName === 'CODE' || block.tagName === 'PRE') {
-      targetElement = block.tagName === 'PRE'
-        ? block
-        : (block.closest('pre') || block.parentElement || block);
-      if (!targetElement) return;
-    }
+    const targetElement = resolveTargetElement(block);
+    if (!targetElement) return;
 
     // 既にボタンがあるかチェック
     if (targetElement.querySelector('.wp-post-btn-wrapper')) return;
@@ -221,7 +258,8 @@
     });
 
     if (inlineTarget) {
-      if (inlineTarget.container.querySelector('.wp-post-btn-inline')) return;
+      const toolbar = resolveActionContainer(inlineTarget.button);
+      if (!toolbar || toolbar.querySelector('.wp-post-btn-inline')) return;
       button.classList.add('wp-post-btn-inline');
       inlineTarget.button.insertAdjacentElement('beforebegin', button);
       return;
@@ -236,6 +274,15 @@
     // 要素内に配置
     targetElement.style.position = 'relative';
     targetElement.appendChild(wrapper);
+  }
+
+  function resolveTargetElement(block) {
+    if (!block || !block.tagName) return null;
+    if (block.tagName === 'CODE') {
+      return block.closest('pre') || block.parentElement || block;
+    }
+    if (block.tagName === 'PRE') return block;
+    return block;
   }
 
   /**
@@ -268,7 +315,7 @@
         }
       }
       if (button) {
-        return { button, container: button.parentElement || container };
+        return { button };
       }
       current = container;
       depth += 1;
@@ -276,6 +323,50 @@
 
     return null;
   }
+
+  function resolveActionContainer(button) {
+    if (!button || !button.parentElement) return null;
+    const parent = button.parentElement;
+    const existingGroup = parent.querySelector('.wp-post-action-group');
+    if (existingGroup) return existingGroup;
+
+    const hasJustifyBetween = parent.classList && parent.classList.contains('justify-between');
+    let isFlexSpaceBetween = false;
+    if (parent instanceof HTMLElement) {
+      const style = window.getComputedStyle(parent);
+      isFlexSpaceBetween = style.display.includes('flex') && style.justifyContent === 'space-between';
+    }
+
+    if (hasJustifyBetween || isFlexSpaceBetween) {
+      const group = document.createElement('div');
+      group.className = 'wp-post-action-group';
+      parent.appendChild(group);
+      group.appendChild(button);
+      return group;
+    }
+
+    return parent;
+  }
+
+  function syncInlineButton(block, inlineTarget) {
+    const targetElement = resolveTargetElement(block);
+    if (!targetElement) return;
+    const toolbar = resolveActionContainer(inlineTarget.button);
+    if (!toolbar) return;
+    const existingInline = toolbar.querySelector('.wp-post-btn-inline');
+    if (existingInline) return;
+
+    const wrapper = targetElement.querySelector('.wp-post-btn-wrapper');
+    if (!wrapper) return;
+    const existingButton = wrapper.querySelector('.wp-post-btn');
+    if (!existingButton) return;
+
+    existingButton.classList.add('wp-post-btn-inline');
+    existingButton.textContent = '投稿';
+    inlineTarget.button.insertAdjacentElement('beforebegin', existingButton);
+    wrapper.remove();
+  }
+
 
   /**
    * 確認ダイアログを表示
