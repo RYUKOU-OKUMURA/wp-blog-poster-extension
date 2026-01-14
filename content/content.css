@@ -65,6 +65,17 @@
   gap: 6px;
 }
 
+.wp-post-action-group-large .wp-post-btn-inline {
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 8px;
+}
+
+.wp-post-action-group-large .wp-post-copy-btn {
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+}
+
 /* ダイアログオーバーレイ */
 .wp-dialog-overlay {
   position: fixed;
@@ -440,7 +451,7 @@
 .wp-editor-modal {
   width: 94%;
   max-width: 980px;
-  max-height: 92vh;
+  max-height: 94vh;
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.35);
@@ -482,8 +493,8 @@
 
 .wp-textarea-expanded {
   flex: 1;
-  min-height: 360px;
-  height: 60vh;
+  min-height: 480px;
+  height: clamp(480px, 72vh, 720px);
 }
 
 /* ダイアログフッター */
@@ -519,6 +530,32 @@
 
 .wp-btn-primary:hover {
   opacity: 0.9;
+}
+
+.wp-submit-btn {
+  padding: 10px 18px;
+  background: linear-gradient(135deg, rgba(17, 24, 39, 0.92), rgba(30, 41, 59, 0.9));
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.28);
+  font-family: "Avenir Next", "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.wp-submit-btn:hover {
+  border-color: rgba(56, 189, 248, 0.55);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.35), 0 0 0 1px rgba(56, 189, 248, 0.2);
+  opacity: 1;
+}
+
+.wp-submit-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.3);
 }
 
 .wp-btn-secondary {

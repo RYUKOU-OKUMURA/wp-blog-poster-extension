@@ -140,6 +140,7 @@
           const inlineTarget = findInlineTarget(block);
           if (processedBlocks.has(block)) {
             if (inlineTarget) {
+              updateActionGroupSize(block, inlineTarget);
               syncInlineButton(block, inlineTarget);
             }
             return;
@@ -182,6 +183,7 @@
 
         if (processedBlocks.has(block)) {
           if (inlineTarget) {
+            updateActionGroupSize(block, inlineTarget);
             syncInlineButton(block, inlineTarget);
           }
           return;
@@ -262,6 +264,7 @@
       if (!toolbar || toolbar.querySelector('.wp-post-btn-inline')) return;
       button.classList.add('wp-post-btn-inline');
       inlineTarget.button.insertAdjacentElement('beforebegin', button);
+      updateActionGroupSize(block, inlineTarget);
       return;
     }
 
@@ -315,6 +318,7 @@
         }
       }
       if (button) {
+        markCopyButton(button);
         return { button };
       }
       current = container;
@@ -326,6 +330,7 @@
 
   function resolveActionContainer(button) {
     if (!button || !button.parentElement) return null;
+    markCopyButton(button);
     const parent = button.parentElement;
     const existingGroup = parent.querySelector('.wp-post-action-group');
     if (existingGroup) return existingGroup;
@@ -348,6 +353,11 @@
     return parent;
   }
 
+  function markCopyButton(button) {
+    if (!button || !(button instanceof HTMLElement)) return;
+    button.classList.add('wp-post-copy-btn');
+  }
+
   function syncInlineButton(block, inlineTarget) {
     const targetElement = resolveTargetElement(block);
     if (!targetElement) return;
@@ -364,7 +374,44 @@
     existingButton.classList.add('wp-post-btn-inline');
     existingButton.textContent = '投稿';
     inlineTarget.button.insertAdjacentElement('beforebegin', existingButton);
+    updateActionGroupSize(block, inlineTarget);
     wrapper.remove();
+  }
+
+  function updateActionGroupSize(block, inlineTarget) {
+    const toolbar = resolveActionContainer(inlineTarget.button);
+    if (!toolbar) return;
+    const isLarge = isExpandedEditor(block);
+    toolbar.classList.toggle('wp-post-action-group-large', isLarge);
+  }
+
+  function isExpandedEditor(block) {
+    const container = findEditorContainer(block);
+    if (!container) return false;
+    return container.getBoundingClientRect().height >= 320;
+  }
+
+  function findEditorContainer(block) {
+    let current = resolveTargetElement(block);
+    let depth = 0;
+    const maxDepth = 10;
+
+    while (current && depth < maxDepth) {
+      if (current instanceof HTMLElement) {
+        const className = current.className || '';
+        if (typeof className === 'string' && /overflow-y-(auto|scroll)/.test(className)) {
+          return current;
+        }
+        const style = window.getComputedStyle(current);
+        if (style && /(auto|scroll)/.test(style.overflowY)) {
+          return current;
+        }
+      }
+      current = current.parentElement;
+      depth += 1;
+    }
+
+    return resolveTargetElement(block);
   }
 
 
