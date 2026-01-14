@@ -8,6 +8,11 @@
 
   // 処理済みブロックを追跡
   const processedBlocks = new WeakSet();
+  const COPY_BUTTON_SELECTORS = [
+    'button[aria-label="コピーする"]',
+    'button[aria-label="Copy code"]',
+    'button[aria-label="Copy"]'
+  ];
 
   // 確認ダイアログの状態
   let activeDialog = null;
@@ -99,14 +104,31 @@
     if (assistantSelector) {
       const messages = document.querySelectorAll(assistantSelector);
       messages.forEach(msg => {
+        // 先にメッセージ内のコードブロックを処理（コピー按钮の位置に追従させるため）
+        const blocks = msg.querySelectorAll('code.language-markdown, pre code, pre');
+        let handledInMessage = false;
+
+        blocks.forEach(block => {
+          if (processedBlocks.has(block)) return;
+          const content = block.textContent || '';
+          if (isMarkdownContent(content)) {
+            processedBlocks.add(block);
+            addPostButton(block, content, platform);
+            handledInMessage = true;
+          }
+        });
+
+        if (handledInMessage) {
+          foundInPlatformMessage = true;
+          return;
+        }
+
         if (processedBlocks.has(msg)) return;
-        // 既にボタンがある要素はスキップ
-        if (msg.querySelector('.wp-post-btn-wrapper')) return;
 
         // 親コンテナに既にボタンがある場合はスキップ（重複防止）
         if (parentSelector) {
           const parent = msg.closest(parentSelector);
-          if (parent && parent.querySelector('.wp-post-btn-wrapper')) return;
+          if (parent && parent.querySelector('.wp-post-btn, .wp-post-btn-wrapper')) return;
         }
 
         const content = msg.innerText || msg.textContent || '';
@@ -122,7 +144,7 @@
 
     // 2. プラットフォーム固有で見つからなかった場合のみ、コードブロックを検索
     if (!foundInPlatformMessage) {
-      const codeBlocks = document.querySelectorAll('pre code, pre');
+      const codeBlocks = document.querySelectorAll('code.language-markdown, pre code, pre');
 
       codeBlocks.forEach(block => {
         if (processedBlocks.has(block)) return;
@@ -174,7 +196,9 @@
 
     // コードブロックの場合はpre要素を使用
     if (block.tagName === 'CODE' || block.tagName === 'PRE') {
-      targetElement = block.tagName === 'PRE' ? block : block.closest('pre');
+      targetElement = block.tagName === 'PRE'
+        ? block
+        : (block.closest('pre') || block.parentElement || block);
       if (!targetElement) return;
     }
 
@@ -183,14 +207,11 @@
     // 親要素にも既にボタンがないかチェック（重複防止）
     if (targetElement.closest('.wp-post-btn-wrapper')) return;
 
-    // ラッパーを作成
-    const wrapper = document.createElement('div');
-    wrapper.className = 'wp-post-btn-wrapper';
-
-    // ボタンを作成
+    const inlineTarget = findInlineTarget(block);
     const button = document.createElement('button');
     button.className = 'wp-post-btn';
-    button.innerHTML = '📤 WPに投稿';
+    button.type = 'button';
+    button.textContent = inlineTarget ? '投稿' : '📤 WPに投稿';
     button.title = 'WordPressに投稿';
 
     button.addEventListener('click', (e) => {
@@ -199,11 +220,61 @@
       showConfirmDialog(content);
     });
 
+    if (inlineTarget) {
+      if (inlineTarget.container.querySelector('.wp-post-btn-inline')) return;
+      button.classList.add('wp-post-btn-inline');
+      inlineTarget.button.insertAdjacentElement('beforebegin', button);
+      return;
+    }
+
+    // ラッパーを作成
+    const wrapper = document.createElement('div');
+    wrapper.className = 'wp-post-btn-wrapper';
+
     wrapper.appendChild(button);
 
     // 要素内に配置
     targetElement.style.position = 'relative';
     targetElement.appendChild(wrapper);
+  }
+
+  /**
+   * コピーボタンの位置に追従させる対象を探す
+   */
+  function findInlineTarget(block) {
+    const selector = COPY_BUTTON_SELECTORS.join(',');
+    const copyButtonLabels = new Set([
+      'コピーする',
+      'コードをコピーする',
+      'Copy code',
+      'Copy'
+    ]);
+    let current = block;
+    let depth = 0;
+    const maxDepth = 8;
+
+    while (current && depth < maxDepth) {
+      const container = current.parentElement;
+      if (!container) break;
+      let button = container.querySelector(selector);
+      if (!button) {
+        const buttons = container.querySelectorAll('button');
+        for (const candidate of buttons) {
+          const label = (candidate.getAttribute('aria-label') || candidate.textContent || '').trim();
+          if (copyButtonLabels.has(label)) {
+            button = candidate;
+            break;
+          }
+        }
+      }
+      if (button) {
+        return { button, container: button.parentElement || container };
+      }
+      current = container;
+      depth += 1;
+    }
+
+    return null;
   }
 
   /**

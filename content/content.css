@@ -41,6 +41,24 @@
   box-shadow: 0 4px 14px rgba(15, 23, 42, 0.3);
 }
 
+.wp-post-btn-inline {
+  padding: 4px 8px;
+  margin-right: 6px;
+  font-size: 11px;
+  border-radius: 6px;
+  box-shadow: none;
+  background: rgba(17, 24, 39, 0.85);
+  white-space: nowrap;
+}
+
+.wp-post-btn-inline:hover {
+  transform: translateY(-1px);
+}
+
+.wp-post-btn-inline:active {
+  transform: translateY(0);
+}
+
 /* ダイアログオーバーレイ */
 .wp-dialog-overlay {
   position: fixed;
