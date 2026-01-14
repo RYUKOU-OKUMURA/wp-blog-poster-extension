@@ -473,8 +473,17 @@ async function handleCreatePost(data) {
       postData.slug = data.slug;
     }
 
-    if (data.date) {
-      postData.date = normalizeDate(data.date);
+    const normalizedDate = data.date ? normalizeDate(data.date) : null;
+    if (postData.status === 'future') {
+      if (!normalizedDate) {
+        return {
+          success: false,
+          error: { code: 'SCHEDULE_DATE_REQUIRED', message: '予約投稿には未来の日時指定が必要です' }
+        };
+      }
+      postData.date = normalizedDate;
+    } else if (normalizedDate) {
+      postData.date = normalizedDate;
     }
 
     if (data.excerpt) {
@@ -513,19 +522,32 @@ function normalizeDate(value) {
   if (!value) return null;
 
   if (value instanceof Date) {
-    return value.toISOString().split('.')[0];
+    return formatLocalDateTime(value);
   }
 
   const dateStr = String(value).trim();
   if (!dateStr) return null;
 
-  // ISO 8601形式かチェック
-  const parsed = new Date(dateStr);
-  if (!isNaN(parsed.getTime())) {
-    return dateStr;
-  }
+  // ローカル日時としてそのままWPに渡す（WP側のタイムゾーンで解釈される）
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(dateStr)) return `${dateStr}:00`;
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(dateStr)) return dateStr;
+  if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}$/.test(dateStr)) return `${dateStr.replace(/\s+/, 'T')}:00`;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return `${dateStr}T00:00:00`;
 
-  return null;
+  // それ以外（タイムゾーン付き等）は Date で解釈 → ローカルに整形
+  const parsed = new Date(dateStr);
+  if (isNaN(parsed.getTime())) return null;
+  return formatLocalDateTime(parsed);
+}
+
+function formatLocalDateTime(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hour = String(date.getHours()).padStart(2, '0');
+  const minute = String(date.getMinutes()).padStart(2, '0');
+  const second = String(date.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hour}:${minute}:${second}`;
 }
 
 console.log('[ブログ投稿アシスタント] Background Service Worker 起動');

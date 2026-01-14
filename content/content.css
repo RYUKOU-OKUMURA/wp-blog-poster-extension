@@ -158,6 +158,18 @@
   color: #aaa;
 }
 
+.wp-form-hint {
+  margin: 6px 0 0 0;
+  font-size: 12px;
+  color: #777;
+}
+
+.wp-form-error {
+  margin: 6px 0 0 0;
+  font-size: 12px;
+  color: #dc3545;
+}
+
 /* ラジオボタン */
 .wp-radio-group {
   display: flex;
@@ -357,6 +369,10 @@
   .wp-dialog-footer {
     background: #252525;
     border-color: #333;
+  }
+
+  .wp-form-hint {
+    color: #999;
   }
 
   .wp-btn-secondary {

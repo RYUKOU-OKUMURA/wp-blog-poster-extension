@@ -232,22 +232,43 @@
     }
 
     // 設定を取得
-    const config = await chrome.storage.local.get(['settings']);
+    const config = await chrome.storage.local.get(['settings', 'wpUrl', 'lastUsedTagsBySite']);
     const defaultStatus = config.settings?.defaultStatus || 'draft';
+    const wpUrl = (config.wpUrl || '').trim();
+    const lastUsedTagsBySite = config.lastUsedTagsBySite || {};
+
+    const scheduleAt = toDatetimeLocalValue(metadata.date);
+    const isScheduledByFrontMatter = isFutureDatetimeLocal(scheduleAt);
+
+    let initialTags = normalizeStringArray(metadata.tags);
+    if (initialTags.length === 0 && wpUrl && Array.isArray(lastUsedTagsBySite[wpUrl])) {
+      initialTags = lastUsedTagsBySite[wpUrl].map(s => String(s).trim()).filter(Boolean);
+    }
 
     const dialogOptions = {
       title,
       categories: normalizeStringArray(metadata.categories),
-      tags: normalizeStringArray(metadata.tags),
+      tags: initialTags,
       slug: metadata.slug,
       excerpt: metadata.excerpt,
       bodyPreview: processedBody.substring(0, 300),
       charCount: processedBody.length,
-      defaultStatus,
-      onConfirm: async (status) => {
+      defaultStatus: isScheduledByFrontMatter ? 'future' : defaultStatus,
+      scheduleAt,
+      wpUrl,
+      onConfirm: async ({ status, scheduleAt }) => {
         showDialogLoading(dialog, true);
 
         try {
+          // 前回タグを保存（投稿成功/失敗に関わらず次回の入力を楽にする）
+          if (dialogOptions.wpUrl) {
+            const trimmedTags = (dialogOptions.tags || []).map(s => String(s).trim()).filter(Boolean);
+            const current = await chrome.storage.local.get(['lastUsedTagsBySite']);
+            const next = { ...(current.lastUsedTagsBySite || {}) };
+            next[dialogOptions.wpUrl] = trimmedTags;
+            await chrome.storage.local.set({ lastUsedTagsBySite: next });
+          }
+
           // Markdown to HTML
           const htmlContent = convertMarkdownToHtml(processedBody);
 
@@ -260,7 +281,7 @@
               categories: dialogOptions.categories,
               tags: dialogOptions.tags,
               slug: dialogOptions.slug,
-              date: metadata.date,
+              date: status === 'future' ? scheduleAt : metadata.date,
               excerpt: dialogOptions.excerpt
             }
           });
@@ -327,7 +348,17 @@
                 <input type="radio" name="wpStatus" value="publish" ${options.defaultStatus === 'publish' ? 'checked' : ''}>
                 公開する
               </label>
+              <label>
+                <input type="radio" name="wpStatus" value="future" ${options.defaultStatus === 'future' ? 'checked' : ''}>
+                予約投稿する
+              </label>
             </div>
+          </div>
+          <div class="wp-form-group" id="wpScheduleGroup" style="display: none;">
+            <label>公開日時（予約）</label>
+            <input type="datetime-local" class="wp-input" id="wpScheduleAt" value="${escapeHtml(options.scheduleAt || '')}">
+            <p class="wp-form-hint">未来の日時のみ指定できます</p>
+            <p class="wp-form-error" id="wpScheduleError" style="display: none;"></p>
           </div>
           <div class="wp-form-group">
             <label>本文プレビュー (${options.charCount.toLocaleString()}文字)</label>
@@ -348,6 +379,25 @@
 
     overlay.appendChild(dialog);
 
+    const scheduleGroup = overlay.querySelector('#wpScheduleGroup');
+    const scheduleInput = overlay.querySelector('#wpScheduleAt');
+    const scheduleError = overlay.querySelector('#wpScheduleError');
+
+    function updateScheduleVisibility() {
+      const status = overlay.querySelector('input[name="wpStatus"]:checked')?.value;
+      const show = status === 'future';
+      scheduleGroup.style.display = show ? 'block' : 'none';
+      if (!show) {
+        scheduleError.style.display = 'none';
+        scheduleError.textContent = '';
+      }
+    }
+
+    overlay.querySelectorAll('input[name="wpStatus"]').forEach((radio) => {
+      radio.addEventListener('change', updateScheduleVisibility);
+    });
+    updateScheduleVisibility();
+
     // イベントリスナー
     overlay.querySelector('.wp-dialog-close').addEventListener('click', options.onCancel);
     overlay.querySelector('.wp-cancel-btn').addEventListener('click', options.onCancel);
@@ -356,13 +406,27 @@
       const categories = overlay.querySelector('#wpCategories').value.split(',').map(s => s.trim()).filter(Boolean);
       const tags = overlay.querySelector('#wpTags').value.split(',').map(s => s.trim()).filter(Boolean);
       const status = overlay.querySelector('input[name="wpStatus"]:checked').value;
+      const scheduleAt = scheduleInput?.value || '';
 
       // オプションを更新
       options.title = title;
       options.categories = categories;
       options.tags = tags;
 
-      options.onConfirm(status);
+      if (status === 'future') {
+        if (!scheduleAt) {
+          scheduleError.textContent = '予約投稿するには公開日時を入力してください';
+          scheduleError.style.display = 'block';
+          return;
+        }
+        if (!isFutureDatetimeLocal(scheduleAt)) {
+          scheduleError.textContent = '未来の日時を入力してください';
+          scheduleError.style.display = 'block';
+          return;
+        }
+      }
+
+      options.onConfirm({ status, scheduleAt });
     });
 
     // オーバーレイクリックで閉じる
@@ -492,6 +556,49 @@
         .filter(Boolean);
     }
     return [String(value).trim()].filter(Boolean);
+  }
+
+  /**
+   * 日時を datetime-local 用の値に変換
+   */
+  function toDatetimeLocalValue(value) {
+    if (!value) return '';
+
+    if (value instanceof Date) {
+      return formatDateToDatetimeLocal(value);
+    }
+
+    const str = String(value).trim();
+    if (!str) return '';
+
+    // すでに datetime-local 形式（秒なし/あり）
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(str)) return str;
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(str)) return str.slice(0, 16);
+
+    // "YYYY-MM-DD HH:MM" など
+    if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}$/.test(str)) {
+      return str.replace(/\s+/, 'T');
+    }
+
+    const parsed = new Date(str);
+    if (isNaN(parsed.getTime())) return '';
+    return formatDateToDatetimeLocal(parsed);
+  }
+
+  function formatDateToDatetimeLocal(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hour = String(date.getHours()).padStart(2, '0');
+    const minute = String(date.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hour}:${minute}`;
+  }
+
+  function isFutureDatetimeLocal(value) {
+    if (!value) return false;
+    const parsed = new Date(String(value));
+    if (isNaN(parsed.getTime())) return false;
+    return parsed.getTime() > Date.now();
   }
 
   /**
