@@ -12,6 +12,9 @@ if (!defined('ABSPATH')) {
 
 define('WPBP_OPTION_KEY', 'wp_blog_poster_token_data');
 define('WPBP_TRANSIENT_PLAIN', 'wp_blog_poster_token_plain');
+if (!defined('WPBP_DEBUG')) {
+  define('WPBP_DEBUG', false);
+}
 
 function wpbp_get_request_token() {
   $token = '';
@@ -55,8 +58,25 @@ function wpbp_validate_token($token) {
   return (int) $data['user_id'];
 }
 
+function wpbp_is_rest_request() {
+  if (defined('REST_REQUEST') && REST_REQUEST) {
+    return true;
+  }
+  if (function_exists('wp_doing_rest') && wp_doing_rest()) {
+    return true;
+  }
+  if (!empty($_SERVER['REQUEST_URI']) && strpos($_SERVER['REQUEST_URI'], '/wp-json/') !== false) {
+    return true;
+  }
+  return false;
+}
+
 function wpbp_determine_current_user($user_id) {
   if ($user_id) {
+    return $user_id;
+  }
+
+  if (!wpbp_is_rest_request()) {
     return $user_id;
   }
 
@@ -115,8 +135,10 @@ function wpbp_limit_routes($result, $server, $request) {
     array('#^/wp/v2/tags#', array('GET', 'POST')),
     array('#^/wp/v2/media#', array('POST')),
     array('#^/wp/v2/posts#', array('POST')),
-    array('#^/wpbp/v1/debug$#', array('GET')),
   );
+  if (WPBP_DEBUG) {
+    $allowed[] = array('#^/wpbp/v1/debug$#', array('GET'));
+  }
 
   foreach ($allowed as $rule) {
     if (preg_match($rule[0], $route) && in_array($method, $rule[1], true)) {
@@ -235,6 +257,9 @@ add_action('admin_post_wpbp_revoke_token', 'wpbp_revoke_token');
 
 // デバッグ用エンドポイント（認証不要）
 function wpbp_register_debug_endpoint() {
+  if (!WPBP_DEBUG) {
+    return;
+  }
   register_rest_route('wpbp/v1', '/debug', array(
     'methods' => 'GET',
     'callback' => 'wpbp_debug_callback',

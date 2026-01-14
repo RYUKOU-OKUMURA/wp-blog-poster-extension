@@ -38,7 +38,6 @@
       subtree: true
     });
 
-    console.log('[ブログ投稿アシスタント] 初期化完了');
   }
 
   /**
@@ -533,8 +532,7 @@
           parseSimpleYaml(yamlContent, metadata);
         }
         body = trimmed.slice(match[0].length);
-      } catch (e) {
-        console.warn('[ブログ投稿アシスタント] Front Matter解析エラー:', e);
+      } catch {
       }
     }
 
@@ -763,8 +761,7 @@
 
       toRemove.forEach(el => el.remove());
       return doc.body.innerHTML;
-    } catch (e) {
-      console.warn('[ブログ投稿アシスタント] HTMLサニタイズ失敗:', e);
+    } catch {
       return html;
     }
   }

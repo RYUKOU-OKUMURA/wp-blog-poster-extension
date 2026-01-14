@@ -16,6 +16,13 @@ function encodeBasicAuth(user, password) {
   return btoa(binary);
 }
 
+function normalizeApplicationPassword(password) {
+  return String(password ?? '').replace(/\s+/g, '');
+}
+
+const TOKEN_TRANSPORT_HEADER = 'header';
+const TOKEN_TRANSPORT_QUERY = 'query';
+
 /**
  * WordPress API クラス
  */
@@ -23,68 +30,124 @@ class WordPressAPI {
   constructor(config) {
     this.baseUrl = config.wpUrl.replace(/\/$/, '');
     this.token = config.wpToken ? String(config.wpToken).trim() : '';
-    this.auth = config.wpUser && config.wpPassword
-      ? encodeBasicAuth(config.wpUser, config.wpPassword)
+    const password = config.wpPassword ? normalizeApplicationPassword(config.wpPassword) : '';
+    this.user = config.wpUser ? String(config.wpUser).trim() : '';
+    this.tokenTransport = config.tokenTransport || TOKEN_TRANSPORT_HEADER;
+    this.tokenTransportChanged = false;
+    this.auth = this.user && password
+      ? encodeBasicAuth(this.user, password)
       : '';
   }
 
-  buildUrl(endpoint) {
+  buildUrl(endpoint, useQueryToken = false) {
     const url = new URL(`${this.baseUrl}/wp-json/wp/v2${endpoint}`);
-    if (this.token) {
+    if (this.token && useQueryToken) {
       url.searchParams.set('wpbp_token', this.token);
     }
     return url.toString();
+  }
+
+  buildHeaders(options = {}, useQueryToken = false) {
+    const headers = {
+      ...options.headers
+    };
+
+    const hasBody = typeof options.body !== 'undefined' && options.body !== null;
+    const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+    if (hasBody && !isFormData && !headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json';
+    }
+
+    if (this.token) {
+      if (!useQueryToken) {
+        headers['X-WPBP-Token'] = this.token;
+      }
+    } else if (this.auth) {
+      headers['Authorization'] = `Basic ${this.auth}`;
+    }
+
+    return headers;
+  }
+
+  normalizeError(error) {
+    if (error && typeof error.status !== 'undefined') {
+      return error;
+    }
+    return {
+      status: 0,
+      code: 'NETWORK_ERROR',
+      message: 'ネットワーク接続を確認してください'
+    };
+  }
+
+  shouldFallbackToQuery(error, useQueryToken) {
+    if (!this.token || useQueryToken) return false;
+    if (this.tokenTransport !== TOKEN_TRANSPORT_HEADER) return false;
+    if (error.code === 'NETWORK_ERROR') return true;
+    if (error.status === 403 && error.code === 'HTTP_ERROR') return true;
+    return error.status === 401 && error.code === 'rest_not_logged_in';
+  }
+
+  markTokenTransportQuery() {
+    if (this.tokenTransport !== TOKEN_TRANSPORT_QUERY) {
+      this.tokenTransport = TOKEN_TRANSPORT_QUERY;
+      this.tokenTransportChanged = true;
+    }
   }
 
   /**
    * APIリクエスト
    */
   async request(endpoint, options = {}) {
-    const url = this.buildUrl(endpoint);
-    const headers = {
-      ...options.headers
-    };
-
-    // POSTリクエストのみContent-Typeを設定（GETでは不要でCORS問題を起こす）
-    if (options.method === 'POST' || options.body) {
-      headers['Content-Type'] = 'application/json';
+    const useQueryToken = this.token && this.tokenTransport === TOKEN_TRANSPORT_QUERY;
+    try {
+      return await this.performRequest(endpoint, options, useQueryToken);
+    } catch (error) {
+      const normalized = this.normalizeError(error);
+      if (this.shouldFallbackToQuery(normalized, useQueryToken)) {
+        try {
+          const result = await this.performRequest(endpoint, options, true);
+          this.markTokenTransportQuery();
+          return result;
+        } catch (fallbackError) {
+          const normalizedFallback = this.normalizeError(fallbackError);
+          if (normalizedFallback.status) {
+            this.markTokenTransportQuery();
+          }
+          throw normalizedFallback;
+        }
+      }
+      throw normalized;
     }
+  }
 
-    // トークン認証はURLパラメータ（buildUrl）で行う（カスタムヘッダーはサーバーでフィルタリングされる）
-    // Basic認証のみヘッダーを使用
-    if (!this.token && this.auth) {
-      headers['Authorization'] = `Basic ${this.auth}`;
+  async performRequest(endpoint, options = {}, useQueryToken = false) {
+    const url = this.buildUrl(endpoint, useQueryToken);
+    const headers = this.buildHeaders(options, useQueryToken);
+    const response = await fetch(url, {
+      ...options,
+      headers
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      let error = {};
+      try {
+        error = JSON.parse(errorText);
+      } catch {
+        error = { message: errorText };
+      }
+      throw {
+        status: response.status,
+        code: error.code || 'HTTP_ERROR',
+        message: error.message || `HTTP Error ${response.status}`
+      };
     }
 
     try {
-      const response = await fetch(url, {
-        ...options,
-        headers
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        let error = {};
-        try {
-          error = JSON.parse(errorText);
-        } catch (e) {
-          error = { message: errorText };
-        }
-        throw {
-          status: response.status,
-          code: error.code || 'UNKNOWN',
-          message: error.message || `HTTP Error ${response.status}`
-        };
-      }
-
-      return response.json();
-    } catch (error) {
-      if (error.status) throw error;
-      throw {
-        status: 0,
-        code: 'NETWORK_ERROR',
-        message: 'ネットワーク接続を確認してください'
-      };
+      return await response.json();
+    } catch {
+      return null;
     }
   }
 
@@ -146,9 +209,7 @@ class WordPressAPI {
         if (category) {
           ids.push(category.id);
         }
-      } catch (e) {
-        console.warn(`カテゴリ「${name}」の解決に失敗:`, e);
-      }
+      } catch {}
     }
     return ids;
   }
@@ -168,9 +229,7 @@ class WordPressAPI {
         if (tag) {
           ids.push(tag.id);
         }
-      } catch (e) {
-        console.warn(`タグ「${name}」の解決に失敗:`, e);
-      }
+      } catch {}
     }
     return ids;
   }
@@ -187,37 +246,23 @@ class WordPressAPI {
       }
 
       const blob = await imageResponse.blob();
-      const mimeType = blob.type || 'image/jpeg';
 
       // WordPress Media APIにアップロード
-      const url = this.buildUrl('/media');
       const formData = new FormData();
       formData.append('file', blob, filename);
 
-      // トークン認証はURLパラメータ（buildUrl）で行う
-      const headers = {};
-      if (!this.token && this.auth) {
-        headers['Authorization'] = `Basic ${this.auth}`;
-      }
-
-      const response = await fetch(url, {
+      const media = await this.request('/media', {
         method: 'POST',
-        headers,
         body: formData
       });
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        throw new Error(error.message || '画像のアップロードに失敗しました');
+      if (!media || !media.id || !media.source_url) {
+        return null;
       }
-
-      const media = await response.json();
       return {
         id: media.id,
         url: media.source_url
       };
     } catch (error) {
-      console.warn('画像アップロードエラー:', error);
       return null;
     }
   }
@@ -280,7 +325,6 @@ class WordPressAPI {
           }
         }
       } catch (e) {
-        console.warn(`画像のアップロードをスキップ: ${url}`, e);
       }
     }
 
@@ -320,6 +364,13 @@ function replaceHtmlImageSrc(content, url, newUrl) {
  * エラーメッセージをユーザーフレンドリーに変換
  */
 function getErrorMessage(error) {
+  if (error?.status === 401 && error?.code === 'rest_not_logged_in') {
+    return {
+      code: 'AUTH_401',
+      message: '現在ログインしていません。認証情報を確認してください'
+    };
+  }
+
   const messages = {
     401: {
       code: 'AUTH_401',
@@ -356,6 +407,36 @@ function getErrorMessage(error) {
   };
 }
 
+function normalizeOrigin(url) {
+  try {
+    return new URL(String(url)).origin;
+  } catch {
+    return null;
+  }
+}
+
+async function resolveTokenTransport(config, stored) {
+  if (!config?.wpToken) return TOKEN_TRANSPORT_HEADER;
+  const origin = normalizeOrigin(config.wpUrl);
+  if (!origin) return TOKEN_TRANSPORT_HEADER;
+  const source = stored || await chrome.storage.local.get(['tokenTransport', 'tokenTransportUrl']);
+  if (source.tokenTransportUrl === origin) {
+    if (source.tokenTransport === TOKEN_TRANSPORT_QUERY) return TOKEN_TRANSPORT_QUERY;
+    if (source.tokenTransport === TOKEN_TRANSPORT_HEADER) return TOKEN_TRANSPORT_HEADER;
+  }
+  return TOKEN_TRANSPORT_HEADER;
+}
+
+async function persistTokenTransportIfNeeded(url, api) {
+  if (!api?.token || !api?.tokenTransportChanged) return;
+  const origin = normalizeOrigin(url);
+  if (!origin) return;
+  await chrome.storage.local.set({
+    tokenTransport: api.tokenTransport,
+    tokenTransportUrl: origin
+  });
+}
+
 /**
  * メッセージハンドラー
  */
@@ -383,7 +464,6 @@ async function handleMessage(message) {
         };
     }
   } catch (error) {
-    console.error('メッセージ処理エラー:', error);
     return {
       success: false,
       error: getErrorMessage(error)
@@ -395,10 +475,11 @@ async function handleMessage(message) {
  * 接続テストを処理
  */
 async function handleTestConnection(data) {
+  const tokenTransport = await resolveTokenTransport(data);
+  let api;
   try {
-    const api = new WordPressAPI(data);
+    api = new WordPressAPI({ ...data, tokenTransport });
     const user = await api.testConnection();
-
     return {
       success: true,
       data: {
@@ -406,10 +487,13 @@ async function handleTestConnection(data) {
       }
     };
   } catch (error) {
+    const formatted = getErrorMessage(error);
     return {
       success: false,
-      error: getErrorMessage(error)
+      error: formatted
     };
+  } finally {
+    await persistTokenTransportIfNeeded(data.wpUrl, api);
   }
 }
 
@@ -417,18 +501,26 @@ async function handleTestConnection(data) {
  * 投稿作成を処理
  */
 async function handleCreatePost(data) {
+  const config = await chrome.storage.local.get([
+    'wpUrl',
+    'wpUser',
+    'wpPassword',
+    'wpToken',
+    'settings',
+    'tokenTransport',
+    'tokenTransportUrl'
+  ]);
+  let api;
   try {
     // 設定を取得
-    const config = await chrome.storage.local.get(['wpUrl', 'wpUser', 'wpPassword', 'wpToken', 'settings']);
-
     if (!config.wpUrl || !config.wpUser || (!config.wpPassword && !config.wpToken)) {
       return {
         success: false,
         error: { code: 'NOT_CONFIGURED', message: '設定が完了していません' }
       };
     }
-
-    const api = new WordPressAPI(config);
+    const tokenTransport = await resolveTokenTransport(config, config);
+    api = new WordPressAPI({ ...config, tokenTransport });
     const autoCreate = config.settings?.autoCreateTerms || false;
 
     // 画像を処理
@@ -440,9 +532,7 @@ async function handleCreatePost(data) {
         const imageResult = await api.processImages(data.content);
         processedContent = imageResult.content;
         featuredMediaId = imageResult.featuredMediaId;
-      } catch (e) {
-        console.warn('画像処理エラー（続行）:', e);
-      }
+      } catch {}
     }
 
     // カテゴリとタグを解決
@@ -507,11 +597,13 @@ async function handleCreatePost(data) {
       }
     };
   } catch (error) {
-    console.error('投稿作成エラー:', error);
+    const formatted = getErrorMessage(error);
     return {
       success: false,
-      error: getErrorMessage(error)
+      error: formatted
     };
+  } finally {
+    await persistTokenTransportIfNeeded(config.wpUrl, api);
   }
 }
 
@@ -549,5 +641,3 @@ function formatLocalDateTime(date) {
   const second = String(date.getSeconds()).padStart(2, '0');
   return `${year}-${month}-${day}T${hour}:${minute}:${second}`;
 }
-
-console.log('[ブログ投稿アシスタント] Background Service Worker 起動');
