@@ -413,17 +413,52 @@
     `;
     overlay.appendChild(previewOverlay);
 
+    const editorOverlay = document.createElement('div');
+    editorOverlay.className = 'wp-editor-overlay';
+    editorOverlay.style.display = 'none';
+    editorOverlay.innerHTML = `
+      <div class="wp-editor-modal" role="dialog" aria-modal="true" aria-label="本文編集">
+        <div class="wp-editor-modal-header">
+          <h3>本文編集</h3>
+          <div class="wp-editor-modal-actions">
+            <span class="wp-char-count" id="wpExpandedCharCount">${options.charCount.toLocaleString()}文字</span>
+            <button type="button" class="wp-tool-btn wp-editor-close">閉じる</button>
+          </div>
+        </div>
+        <div class="wp-editor-modal-body"></div>
+      </div>
+    `;
+    overlay.appendChild(editorOverlay);
+
     const scheduleGroup = overlay.querySelector('#wpScheduleGroup');
     const scheduleInput = overlay.querySelector('#wpScheduleAt');
     const scheduleError = overlay.querySelector('#wpScheduleError');
     const bodyEditor = overlay.querySelector('#wpBody');
     const charCount = overlay.querySelector('#wpCharCount');
+    const mainToolbar = overlay.querySelector('.wp-editor-toolbar');
     const previewBtn = overlay.querySelector('.wp-preview-btn');
     const expandBtn = overlay.querySelector('.wp-expand-btn');
     const previewContent = overlay.querySelector('#wpPreviewContent');
     const previewClose = overlay.querySelector('.wp-preview-close');
-    const selectionState = { start: 0, end: 0 };
-    let editorExpanded = false;
+    const editorOverlayEl = overlay.querySelector('.wp-editor-overlay');
+    const editorModalBody = editorOverlayEl ? editorOverlayEl.querySelector('.wp-editor-modal-body') : null;
+    const expandedCharCount = overlay.querySelector('#wpExpandedCharCount');
+    const editorClose = overlay.querySelector('.wp-editor-close');
+    let expandedEditor = null;
+    let expandedToolbar = null;
+    const mainSelectionState = { start: 0, end: 0 };
+    const expandedSelectionState = { start: 0, end: 0 };
+
+    if (editorModalBody && mainToolbar) {
+      expandedToolbar = mainToolbar.cloneNode(true);
+      editorModalBody.appendChild(expandedToolbar);
+      expandedEditor = document.createElement('textarea');
+      expandedEditor.className = 'wp-textarea wp-textarea-expanded';
+      expandedEditor.id = 'wpBodyExpanded';
+      expandedEditor.rows = 16;
+      expandedEditor.value = options.body || '';
+      editorModalBody.appendChild(expandedEditor);
+    }
 
     function updateScheduleVisibility() {
       const status = overlay.querySelector('input[name="wpStatus"]:checked')?.value;
@@ -440,17 +475,11 @@
     });
     updateScheduleVisibility();
 
-    function updateCharCount() {
-      if (!bodyEditor || !charCount) return;
-      charCount.textContent = `${bodyEditor.value.length.toLocaleString()}文字`;
-    }
-
-    function setEditorExpanded(expanded) {
-      editorExpanded = expanded;
-      overlay.classList.toggle('wp-editor-expanded', expanded);
-      if (expandBtn) {
-        expandBtn.textContent = expanded ? '縮小' : '拡大';
-      }
+    function updateCharCount(value) {
+      const text = typeof value === 'string' ? value : (bodyEditor ? bodyEditor.value : '');
+      const length = text.length;
+      if (charCount) charCount.textContent = `${length.toLocaleString()}文字`;
+      if (expandedCharCount) expandedCharCount.textContent = `${length.toLocaleString()}文字`;
     }
 
     function openPreview() {
@@ -464,62 +493,103 @@
       previewOverlay.style.display = 'none';
     }
 
-    function captureSelection() {
-      if (!bodyEditor) return;
-      if (typeof bodyEditor.selectionStart === 'number') {
-        selectionState.start = bodyEditor.selectionStart;
-        selectionState.end = bodyEditor.selectionEnd || bodyEditor.selectionStart;
+    function openEditorModal() {
+      if (!editorOverlayEl || !expandedEditor || !bodyEditor) return;
+      expandedEditor.value = bodyEditor.value;
+      updateCharCount(bodyEditor.value);
+      editorOverlayEl.style.display = 'flex';
+      const { start, end } = getSelectionRange(bodyEditor);
+      focusEditorWithoutScroll(expandedEditor);
+      expandedEditor.setSelectionRange(start, end);
+      expandedSelectionState.start = start;
+      expandedSelectionState.end = end;
+    }
+
+    function closeEditorModal() {
+      if (!editorOverlayEl || !expandedEditor || !bodyEditor) return;
+      const { start, end } = getSelectionRange(expandedEditor);
+      bodyEditor.value = expandedEditor.value;
+      updateCharCount(bodyEditor.value);
+      editorOverlayEl.style.display = 'none';
+      focusEditorWithoutScroll(bodyEditor);
+      bodyEditor.setSelectionRange(start, end);
+      mainSelectionState.start = start;
+      mainSelectionState.end = end;
+    }
+
+    function getSelectionState(editor) {
+      return editor === expandedEditor ? expandedSelectionState : mainSelectionState;
+    }
+
+    function captureSelection(editor) {
+      if (!editor) return;
+      const state = getSelectionState(editor);
+      if (typeof editor.selectionStart === 'number') {
+        state.start = editor.selectionStart;
+        state.end = editor.selectionEnd || editor.selectionStart;
       }
     }
 
-    function getSelectionRange() {
-      if (!bodyEditor) return { start: 0, end: 0 };
-      if (document.activeElement !== bodyEditor) {
-        return { start: selectionState.start, end: selectionState.end };
+    function getSelectionRange(editor) {
+      if (!editor) return { start: 0, end: 0 };
+      const state = getSelectionState(editor);
+      if (document.activeElement !== editor) {
+        return { start: state.start, end: state.end };
       }
       return {
-        start: typeof bodyEditor.selectionStart === 'number' ? bodyEditor.selectionStart : selectionState.start,
-        end: typeof bodyEditor.selectionEnd === 'number' ? bodyEditor.selectionEnd : selectionState.end
+        start: typeof editor.selectionStart === 'number' ? editor.selectionStart : state.start,
+        end: typeof editor.selectionEnd === 'number' ? editor.selectionEnd : state.end
       };
     }
 
-    function focusEditorWithoutScroll() {
-      if (!bodyEditor) return;
+    function focusEditorWithoutScroll(editor) {
+      if (!editor) return;
       try {
-        bodyEditor.focus({ preventScroll: true });
+        editor.focus({ preventScroll: true });
       } catch {
-        bodyEditor.focus();
+        editor.focus();
       }
     }
 
-    function updateEditorValue(nextValue, selectionStart, selectionEnd) {
-      if (!bodyEditor) return;
-      const scrollTop = bodyEditor.scrollTop;
-      bodyEditor.value = nextValue;
-      focusEditorWithoutScroll();
-      bodyEditor.setSelectionRange(selectionStart, selectionEnd);
-      bodyEditor.scrollTop = scrollTop;
-      selectionState.start = selectionStart;
-      selectionState.end = selectionEnd;
-      updateCharCount();
+    function syncEditorValues(sourceEditor, value) {
+      if (sourceEditor === bodyEditor && expandedEditor) {
+        expandedEditor.value = value;
+      }
+      if (sourceEditor === expandedEditor && bodyEditor) {
+        bodyEditor.value = value;
+      }
     }
 
-    function wrapSelection(before, after) {
-      if (!bodyEditor) return;
-      const value = bodyEditor.value;
-      const { start, end } = getSelectionRange();
+    function updateEditorValue(editor, nextValue, selectionStart, selectionEnd) {
+      if (!editor) return;
+      const scrollTop = editor.scrollTop;
+      editor.value = nextValue;
+      syncEditorValues(editor, nextValue);
+      focusEditorWithoutScroll(editor);
+      editor.setSelectionRange(selectionStart, selectionEnd);
+      editor.scrollTop = scrollTop;
+      const state = getSelectionState(editor);
+      state.start = selectionStart;
+      state.end = selectionEnd;
+      updateCharCount(nextValue);
+    }
+
+    function wrapSelection(editor, before, after) {
+      if (!editor) return;
+      const value = editor.value;
+      const { start, end } = getSelectionRange(editor);
       const selected = value.slice(start, end);
       const insert = `${before}${selected}${after}`;
       const nextValue = value.slice(0, start) + insert + value.slice(end);
       const cursorStart = start + before.length;
       const cursorEnd = cursorStart + selected.length;
-      updateEditorValue(nextValue, cursorStart, cursorEnd);
+      updateEditorValue(editor, nextValue, cursorStart, cursorEnd);
     }
 
-    function insertLink() {
-      if (!bodyEditor) return;
-      const value = bodyEditor.value;
-      const { start, end } = getSelectionRange();
+    function insertLink(editor) {
+      if (!editor) return;
+      const value = editor.value;
+      const { start, end } = getSelectionRange(editor);
       const selected = value.slice(start, end);
       const text = selected || 'text';
       const url = 'https://';
@@ -527,13 +597,13 @@
       const nextValue = value.slice(0, start) + insert + value.slice(end);
       const urlStart = start + 2 + text.length;
       const urlEnd = urlStart + url.length;
-      updateEditorValue(nextValue, urlStart, urlEnd);
+      updateEditorValue(editor, nextValue, urlStart, urlEnd);
     }
 
-    function prefixLines(prefix, ordered = false) {
-      if (!bodyEditor) return;
-      const value = bodyEditor.value;
-      const { start, end } = getSelectionRange();
+    function prefixLines(editor, prefix, ordered = false) {
+      if (!editor) return;
+      const value = editor.value;
+      const { start, end } = getSelectionRange(editor);
       const lineStart = value.lastIndexOf('\n', start - 1) + 1;
       const lineEnd = (() => {
         const index = value.indexOf('\n', end);
@@ -546,13 +616,13 @@
         return `${prefix}${line}`;
       }).join('\n');
       const nextValue = value.slice(0, lineStart) + updated + value.slice(lineEnd);
-      updateEditorValue(nextValue, lineStart, lineStart + updated.length);
+      updateEditorValue(editor, nextValue, lineStart, lineStart + updated.length);
     }
 
-    function insertCodeBlock() {
-      if (!bodyEditor) return;
-      const value = bodyEditor.value;
-      const { start, end } = getSelectionRange();
+    function insertCodeBlock(editor) {
+      if (!editor) return;
+      const value = editor.value;
+      const { start, end } = getSelectionRange(editor);
       const selected = value.slice(start, end);
       const before = '```\n';
       const after = '\n```';
@@ -560,13 +630,13 @@
       const nextValue = value.slice(0, start) + insert + value.slice(end);
       const cursorStart = start + before.length;
       const cursorEnd = selected ? cursorStart + selected.length : cursorStart;
-      updateEditorValue(nextValue, cursorStart, cursorEnd);
+      updateEditorValue(editor, nextValue, cursorStart, cursorEnd);
     }
 
-    function insertHorizontalRule() {
-      if (!bodyEditor) return;
-      const value = bodyEditor.value;
-      const { start, end } = getSelectionRange();
+    function insertHorizontalRule(editor) {
+      if (!editor) return;
+      const value = editor.value;
+      const { start, end } = getSelectionRange(editor);
       let insert = '---';
       if (start > 0 && value[start - 1] !== '\n') {
         insert = `\n${insert}`;
@@ -574,37 +644,133 @@
       insert = `${insert}\n`;
       const nextValue = value.slice(0, start) + insert + value.slice(end);
       const cursor = start + insert.length;
-      updateEditorValue(nextValue, cursor, cursor);
+      updateEditorValue(editor, nextValue, cursor, cursor);
+    }
+
+    function handleEditorInput(editor) {
+      if (!editor) return;
+      captureSelection(editor);
+      syncEditorValues(editor, editor.value);
+      updateCharCount(editor.value);
+    }
+
+    function handleToolbarAction(action, editor) {
+      switch (action) {
+        case 'bold':
+          wrapSelection(editor, '**', '**');
+          break;
+        case 'italic':
+          wrapSelection(editor, '*', '*');
+          break;
+        case 'heading':
+          prefixLines(editor, '## ');
+          break;
+        case 'code':
+          wrapSelection(editor, '`', '`');
+          break;
+        case 'link':
+          insertLink(editor);
+          break;
+        case 'ul':
+          prefixLines(editor, '- ');
+          break;
+        case 'ol':
+          prefixLines(editor, '', true);
+          break;
+        case 'quote':
+          prefixLines(editor, '> ');
+          break;
+        case 'codeblock':
+          insertCodeBlock(editor);
+          break;
+        case 'hr':
+          insertHorizontalRule(editor);
+          break;
+        default:
+          break;
+      }
+    }
+
+    function bindToolbar(toolbar, editor) {
+      if (!toolbar || !editor) return;
+      toolbar.querySelectorAll('.wp-tool-btn').forEach((button) => {
+        button.addEventListener('mousedown', (event) => {
+          captureSelection(editor);
+          event.preventDefault();
+        });
+      });
+      toolbar.querySelectorAll('.wp-tool-btn[data-action]').forEach((button) => {
+        button.addEventListener('click', () => {
+          focusEditorWithoutScroll(editor);
+          const action = button.getAttribute('data-action');
+          handleToolbarAction(action, editor);
+        });
+      });
     }
 
     if (bodyEditor) {
       const selectionEvents = ['keyup', 'click', 'select', 'mouseup', 'focus'];
       selectionEvents.forEach((eventName) => {
-        bodyEditor.addEventListener(eventName, captureSelection);
+        bodyEditor.addEventListener(eventName, () => captureSelection(bodyEditor));
       });
       bodyEditor.addEventListener('input', () => {
-        captureSelection();
-        updateCharCount();
+        handleEditorInput(bodyEditor);
       });
-      captureSelection();
+      captureSelection(bodyEditor);
     }
 
+    if (expandedEditor) {
+      const selectionEvents = ['keyup', 'click', 'select', 'mouseup', 'focus'];
+      selectionEvents.forEach((eventName) => {
+        expandedEditor.addEventListener(eventName, () => captureSelection(expandedEditor));
+      });
+      expandedEditor.addEventListener('input', () => {
+        handleEditorInput(expandedEditor);
+      });
+      captureSelection(expandedEditor);
+    }
+
+    bindToolbar(mainToolbar, bodyEditor);
+    bindToolbar(expandedToolbar, expandedEditor);
+
     if (previewBtn) {
+      previewBtn.addEventListener('mousedown', (event) => {
+        captureSelection(bodyEditor);
+        event.preventDefault();
+      });
       previewBtn.addEventListener('click', () => {
         openPreview();
       });
     }
 
     if (expandBtn) {
+      expandBtn.addEventListener('mousedown', (event) => {
+        captureSelection(bodyEditor);
+        event.preventDefault();
+      });
       expandBtn.addEventListener('click', () => {
-        setEditorExpanded(!editorExpanded);
+        openEditorModal();
+      });
+    }
+
+    if (editorClose) {
+      editorClose.addEventListener('click', () => {
+        closeEditorModal();
+      });
+    }
+
+    if (editorOverlayEl) {
+      editorOverlayEl.addEventListener('click', (event) => {
+        if (event.target === editorOverlayEl) {
+          closeEditorModal();
+        }
       });
     }
 
     if (previewClose) {
       previewClose.addEventListener('click', () => {
         closePreview();
-        focusEditorWithoutScroll();
+        focusEditorWithoutScroll(bodyEditor);
       });
     }
 
@@ -612,58 +778,10 @@
       previewOverlay.addEventListener('click', (event) => {
         if (event.target === previewOverlay) {
           closePreview();
-          focusEditorWithoutScroll();
+          focusEditorWithoutScroll(bodyEditor);
         }
       });
     }
-
-    overlay.querySelectorAll('.wp-tool-btn').forEach((button) => {
-      button.addEventListener('mousedown', (event) => {
-        captureSelection();
-        event.preventDefault();
-      });
-    });
-
-    overlay.querySelectorAll('.wp-tool-btn[data-action]').forEach((button) => {
-      button.addEventListener('click', () => {
-        focusEditorWithoutScroll();
-        const action = button.getAttribute('data-action');
-        switch (action) {
-          case 'bold':
-            wrapSelection('**', '**');
-            break;
-          case 'italic':
-            wrapSelection('*', '*');
-            break;
-          case 'heading':
-            prefixLines('## ');
-            break;
-          case 'code':
-            wrapSelection('`', '`');
-            break;
-          case 'link':
-            insertLink();
-            break;
-          case 'ul':
-            prefixLines('- ');
-            break;
-          case 'ol':
-            prefixLines('', true);
-            break;
-          case 'quote':
-            prefixLines('> ');
-            break;
-          case 'codeblock':
-            insertCodeBlock();
-            break;
-          case 'hr':
-            insertHorizontalRule();
-            break;
-          default:
-            break;
-        }
-      });
-    });
 
     // イベントリスナー
     overlay.querySelector('.wp-dialog-close').addEventListener('click', options.onCancel);

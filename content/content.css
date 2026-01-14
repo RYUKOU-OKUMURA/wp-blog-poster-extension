@@ -402,13 +402,64 @@
   color: inherit;
 }
 
-.wp-editor-expanded .wp-dialog {
-  width: 96%;
-  max-width: 860px;
+/* エディター拡大表示 */
+.wp-editor-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 12000;
 }
 
-.wp-editor-expanded .wp-textarea {
-  min-height: 320px;
+.wp-editor-modal {
+  width: 94%;
+  max-width: 980px;
+  max-height: 92vh;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.wp-editor-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #eee;
+  background: #fafafa;
+}
+
+.wp-editor-modal-header h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+  color: #333;
+}
+
+.wp-editor-modal-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wp-editor-modal-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  overflow: hidden;
+}
+
+.wp-textarea-expanded {
+  flex: 1;
+  min-height: 360px;
+  height: 60vh;
 }
 
 /* ダイアログフッター */
@@ -594,6 +645,27 @@
 
   .wp-char-count {
     color: #aaa;
+  }
+
+  .wp-editor-modal {
+    background: #1f2937;
+  }
+
+  .wp-editor-modal-header {
+    background: #111827;
+    border-color: #2b3646;
+  }
+
+  .wp-editor-modal-header h3 {
+    color: #e5e7eb;
+  }
+
+  .wp-editor-modal-actions .wp-char-count {
+    color: #cbd5e1;
+  }
+
+  .wp-editor-modal-body {
+    background: #1f2937;
   }
 
   .wp-preview-modal {
