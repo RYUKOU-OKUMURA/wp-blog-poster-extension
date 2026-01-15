@@ -16,6 +16,20 @@ if (!defined('WPBP_DEBUG')) {
   define('WPBP_DEBUG', false);
 }
 
+// セキュリティ: トークン有効期限（日数）
+if (!defined('WPBP_TOKEN_LIFETIME_DAYS')) {
+  define('WPBP_TOKEN_LIFETIME_DAYS', 90);
+}
+
+// セキュリティ: レート制限
+if (!defined('WPBP_RATE_LIMIT_REQUESTS')) {
+  define('WPBP_RATE_LIMIT_REQUESTS', 60); // 1分あたりの最大リクエスト数
+}
+if (!defined('WPBP_RATE_LIMIT_WINDOW')) {
+  define('WPBP_RATE_LIMIT_WINDOW', 60); // ウィンドウサイズ（秒）
+}
+define('WPBP_RATE_LIMIT_TRANSIENT_PREFIX', 'wpbp_rate_');
+
 function wpbp_get_request_token() {
   $token = '';
 
@@ -45,10 +59,22 @@ function wpbp_get_request_token() {
   return $token;
 }
 
+/**
+ * トークンを検証（有効期限チェック付き）
+ */
 function wpbp_validate_token($token) {
   $data = get_option(WPBP_OPTION_KEY);
   if (empty($data['hash']) || empty($data['user_id'])) {
     return 0;
+  }
+
+  // 有効期限チェック
+  if (!empty($data['created_at']) && WPBP_TOKEN_LIFETIME_DAYS > 0) {
+    $expires_at = $data['created_at'] + (WPBP_TOKEN_LIFETIME_DAYS * DAY_IN_SECONDS);
+    if (time() > $expires_at) {
+      $GLOBALS['wpbp_token_expired'] = true;
+      return 0;
+    }
   }
 
   if (!wp_check_password($token, $data['hash'])) {
@@ -56,6 +82,47 @@ function wpbp_validate_token($token) {
   }
 
   return (int) $data['user_id'];
+}
+
+/**
+ * レート制限をチェック
+ * @return bool レート制限内ならtrue、超過ならfalse
+ */
+function wpbp_check_rate_limit() {
+  // レート制限が無効化されている場合
+  if (WPBP_RATE_LIMIT_REQUESTS <= 0) {
+    return true;
+  }
+
+  $ip = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field($_SERVER['REMOTE_ADDR']) : 'unknown';
+  $transient_key = WPBP_RATE_LIMIT_TRANSIENT_PREFIX . md5($ip);
+  $now = time();
+
+  $data = get_transient($transient_key);
+
+  if ($data === false) {
+    // 初回リクエスト
+    set_transient($transient_key, array(
+      'count' => 1,
+      'window_start' => $now
+    ), WPBP_RATE_LIMIT_WINDOW);
+    return true;
+  }
+
+  // ウィンドウが期限切れの場合はリセット
+  if ($now - $data['window_start'] > WPBP_RATE_LIMIT_WINDOW) {
+    set_transient($transient_key, array(
+      'count' => 1,
+      'window_start' => $now
+    ), WPBP_RATE_LIMIT_WINDOW);
+    return true;
+  }
+
+  // カウンターをインクリメント
+  $data['count']++;
+  set_transient($transient_key, $data, WPBP_RATE_LIMIT_WINDOW);
+
+  return $data['count'] <= WPBP_RATE_LIMIT_REQUESTS;
 }
 
 function wpbp_is_rest_request() {
@@ -102,8 +169,25 @@ function wpbp_rest_authentication_errors($result) {
     return $result;
   }
 
+  // レート制限チェック（トークン認証の前に実行）
+  if (!wpbp_check_rate_limit()) {
+    return new WP_Error(
+      'wpbp_rate_limit_exceeded',
+      'Rate limit exceeded. Please try again later.',
+      array('status' => 429)
+    );
+  }
+
   $validated_user_id = wpbp_validate_token($token);
   if (!$validated_user_id) {
+    // トークン期限切れの場合は専用メッセージ
+    if (!empty($GLOBALS['wpbp_token_expired'])) {
+      return new WP_Error(
+        'wpbp_token_expired',
+        'Token has expired. Please regenerate a new token.',
+        array('status' => 401)
+      );
+    }
     return new WP_Error('wpbp_invalid_token', 'Invalid token.', array('status' => 401));
   }
 
@@ -177,6 +261,18 @@ function wpbp_render_settings_page() {
   $has_token = !empty($data['hash']) && !empty($data['user_id']);
   $plain = get_transient(WPBP_TRANSIENT_PLAIN);
 
+  // 有効期限を計算
+  $expires_at = null;
+  $is_expired = false;
+  $time_remaining = '';
+  if ($has_token && !empty($data['created_at']) && WPBP_TOKEN_LIFETIME_DAYS > 0) {
+    $expires_at = $data['created_at'] + (WPBP_TOKEN_LIFETIME_DAYS * DAY_IN_SECONDS);
+    $is_expired = time() > $expires_at;
+    if (!$is_expired) {
+      $time_remaining = human_time_diff(time(), $expires_at);
+    }
+  }
+
   ?>
   <div class="wrap">
     <h1>Blog Poster Token</h1>
@@ -186,6 +282,19 @@ function wpbp_render_settings_page() {
       <div style="padding:12px;border:1px solid #ccd0d4;background:#f6ffed;margin:12px 0;">
         <strong>Your token (shown once):</strong>
         <code style="display:block;margin-top:8px;"><?php echo esc_html($plain); ?></code>
+      </div>
+    <?php endif; ?>
+
+    <?php if ($has_token && $is_expired) : ?>
+      <div style="padding:12px;border:1px solid #dc3545;background:#f8d7da;margin:12px 0;color:#721c24;">
+        <strong>⚠️ Your token has expired.</strong>
+        <p style="margin:8px 0 0;">Please regenerate a new token to continue using the extension.</p>
+      </div>
+    <?php elseif ($has_token && $expires_at) : ?>
+      <div style="padding:12px;border:1px solid #ccd0d4;background:#e7f3ff;margin:12px 0;">
+        <strong>Token Status:</strong> Active<br>
+        <strong>Expires:</strong> <?php echo esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $expires_at)); ?>
+        <br><small>(<?php echo esc_html($time_remaining); ?> remaining)</small>
       </div>
     <?php endif; ?>
 
@@ -216,6 +325,13 @@ function wpbp_render_settings_page() {
   <p>If headers are blocked by hosting, you can also use:</p>
   <code>?wpbp_token=YOUR_TOKEN</code>
   <p>Allowed endpoints: posts, media, categories, tags, users/me.</p>
+
+  <hr>
+  <h2>Security Information</h2>
+  <ul>
+    <li><strong>Token Lifetime:</strong> <?php echo esc_html(WPBP_TOKEN_LIFETIME_DAYS); ?> days</li>
+    <li><strong>Rate Limit:</strong> <?php echo esc_html(WPBP_RATE_LIMIT_REQUESTS); ?> requests per <?php echo esc_html(WPBP_RATE_LIMIT_WINDOW); ?> seconds</li>
+  </ul>
 </div>
   <?php
 }

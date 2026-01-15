@@ -264,6 +264,38 @@ body {
   text-decoration: underline;
 }
 
+/* Security Notice */
+.security-notice {
+  margin: 12px 0;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.security-notice summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--text);
+  padding: 2px 0;
+}
+
+.security-notice summary:hover {
+  color: var(--accent);
+}
+
+.security-notice ul {
+  margin: 10px 0 0 0;
+  padding-left: 18px;
+  color: var(--text-light);
+}
+
+.security-notice li {
+  margin: 4px 0;
+  line-height: 1.5;
+}
+
 /* Steps */
 .step {
   display: none;

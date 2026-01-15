@@ -309,7 +309,7 @@ async function handleTestConnection() {
 /**
  * Test connection to WordPress
  */
-async function testConnection() {
+async function testConnection(retryWithConsent = false) {
   const permissionResult = await ensureHostPermission(tempConfig.wpUrl);
   if (!permissionResult.ok) {
     showTestFailure(permissionResult.message, [
@@ -322,12 +322,37 @@ async function testConnection() {
   showLoading(true);
 
   try {
+    const requestData = { ...tempConfig };
+    // 同意フラグを付与（リトライ時のみ）
+    if (retryWithConsent) {
+      requestData.queryFallbackConsented = true;
+    }
+
     const response = await chrome.runtime.sendMessage({
       type: 'TEST_CONNECTION',
-      data: tempConfig
+      data: requestData
     });
 
     showLoading(false);
+
+    // クエリパラメータフォールバックの同意が必要な場合
+    if (response.needsQueryFallbackConsent) {
+      const userConsented = await showQueryFallbackConsentDialog();
+      if (userConsented) {
+        // 同意をストレージに保存してリトライ
+        await chrome.storage.local.set({ queryFallbackConsent: true });
+        return testConnection(true);
+      } else {
+        // 同意しなかった場合のエラー表示
+        showTestFailure('ヘッダー認証が利用できません', [
+          'お使いのサーバーではヘッダー認証がブロックされています',
+          'URLパラメータ方式を使用する場合は、もう一度接続テストを実行してください',
+          'または、アプリケーションパスワード方式をお試しください'
+        ]);
+        return;
+      }
+    }
+
     showResultStep();
 
     if (response.success) {
@@ -344,6 +369,27 @@ async function testConnection() {
       '拡張機能を再読み込みしてください'
     ]);
   }
+}
+
+/**
+ * クエリパラメータフォールバックの同意ダイアログを表示
+ * @returns {Promise<boolean>} ユーザーが同意したかどうか
+ */
+async function showQueryFallbackConsentDialog() {
+  return new Promise((resolve) => {
+    const message = `【セキュリティに関する重要なお知らせ】
+
+お使いのサーバーではヘッダー認証がブロックされているようです。
+
+代替手段として、URLにトークンを含める方式に切り替えることができます。
+
+⚠️ 注意：この方式ではトークンがサーバーのアクセスログに記録される可能性があります。
+
+切り替えますか？`;
+
+    const confirmed = confirm(message);
+    resolve(confirmed);
+  });
 }
 
 function showTestFailure(message, hints) {

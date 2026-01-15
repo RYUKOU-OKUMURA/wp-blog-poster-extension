@@ -1430,55 +1430,171 @@
   }
 
   /**
-   * 危険なタグ/属性を軽く除去
+   * 安全なHTMLサニタイザー（ホワイトリスト方式）
+   * XSS攻撃を防ぐため、許可されたタグと属性のみを通過させる
    */
   function sanitizeHtml(html) {
+    // ホワイトリスト: 許可するタグ
+    const ALLOWED_TAGS = new Set([
+      // 構造
+      'p', 'div', 'span', 'br', 'hr',
+      // 見出し
+      'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+      // テキスト装飾
+      'strong', 'b', 'em', 'i', 'u', 's', 'strike', 'del', 'ins',
+      'sub', 'sup', 'small', 'mark', 'abbr', 'cite', 'q',
+      // リスト
+      'ul', 'ol', 'li', 'dl', 'dt', 'dd',
+      // リンク・メディア
+      'a', 'img',
+      // テーブル
+      'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'caption', 'colgroup', 'col',
+      // 引用・コード
+      'blockquote', 'pre', 'code', 'kbd', 'samp', 'var',
+      // セマンティック
+      'figure', 'figcaption', 'article', 'section', 'aside',
+      'header', 'footer', 'main', 'nav', 'address', 'time',
+      // ルビ（日本語用）
+      'ruby', 'rt', 'rp',
+      // その他
+      'details', 'summary', 'wbr'
+    ]);
+
+    // ホワイトリスト: タグごとの許可属性
+    const ALLOWED_ATTRIBUTES = {
+      '*': ['class', 'id', 'title', 'lang', 'dir'],
+      'a': ['href', 'target', 'rel', 'hreflang'],
+      'img': ['src', 'alt', 'width', 'height', 'loading'],
+      'td': ['colspan', 'rowspan', 'headers'],
+      'th': ['colspan', 'rowspan', 'scope', 'headers'],
+      'col': ['span'],
+      'colgroup': ['span'],
+      'ol': ['start', 'type', 'reversed'],
+      'li': ['value'],
+      'time': ['datetime'],
+      'abbr': ['title'],
+      'blockquote': ['cite'],
+      'q': ['cite'],
+      'del': ['cite', 'datetime'],
+      'ins': ['cite', 'datetime'],
+      'table': ['border']
+    };
+
     try {
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, 'text/html');
-      const blockedTags = new Set(['script', 'iframe', 'object', 'embed', 'link', 'style']);
+
+      // パースエラーチェック
+      const parseError = doc.querySelector('parsererror');
+      if (parseError) {
+        console.warn('HTML parse error, returning escaped HTML');
+        return escapeHtml(html);
+      }
+
       const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_ELEMENT, null);
       const toRemove = [];
 
       while (walker.nextNode()) {
         const el = walker.currentNode;
         const tag = el.tagName.toLowerCase();
-        if (blockedTags.has(tag)) {
+
+        // ホワイトリストにないタグは削除対象
+        if (!ALLOWED_TAGS.has(tag)) {
           toRemove.push(el);
           continue;
         }
 
+        // 許可された属性のみを残す
+        const allowedForTag = [
+          ...(ALLOWED_ATTRIBUTES['*'] || []),
+          ...(ALLOWED_ATTRIBUTES[tag] || [])
+        ];
+
         for (const attr of [...el.attributes]) {
           const name = attr.name.toLowerCase();
           const value = attr.value;
+
+          // イベントハンドラは常に削除
           if (name.startsWith('on')) {
             el.removeAttribute(attr.name);
             continue;
           }
-          if (name === 'href' || name === 'src' || name === 'xlink:href') {
+
+          // 許可リストにない属性は削除
+          if (!allowedForTag.includes(name)) {
+            el.removeAttribute(attr.name);
+            continue;
+          }
+
+          // URL属性の検証
+          if (name === 'href' || name === 'src') {
             if (isDangerousUrl(value)) {
               el.removeAttribute(attr.name);
+            }
+          }
+
+          // aタグのtarget="_blank"にはrel="noopener noreferrer"を追加
+          if (tag === 'a' && name === 'target' && value === '_blank') {
+            const currentRel = el.getAttribute('rel') || '';
+            if (!currentRel.includes('noopener')) {
+              el.setAttribute('rel', (currentRel + ' noopener noreferrer').trim());
             }
           }
         }
       }
 
-      toRemove.forEach(el => el.remove());
+      // 削除対象の要素を処理（テキストは保持）
+      toRemove.forEach(el => {
+        const dangerousTags = ['script', 'style', 'noscript', 'iframe', 'object', 'embed'];
+        if (!dangerousTags.includes(el.tagName.toLowerCase()) && el.textContent) {
+          const textNode = document.createTextNode(el.textContent);
+          el.parentNode?.replaceChild(textNode, el);
+        } else {
+          el.remove();
+        }
+      });
+
       return doc.body.innerHTML;
-    } catch {
-      return html;
+    } catch (error) {
+      // エラー時は安全のためエスケープしたHTMLを返す（生HTMLは返さない）
+      console.warn('Sanitization error, returning escaped HTML:', error);
+      return escapeHtml(html);
     }
   }
 
+  /**
+   * 危険なURLを検出
+   */
   function isDangerousUrl(value) {
     if (!value) return false;
     const trimmed = value.trim().toLowerCase();
+
+    // javascript/vbscriptプロトコルをブロック
     if (trimmed.startsWith('javascript:') || trimmed.startsWith('vbscript:')) {
       return true;
     }
+
+    // data: URLの検証
     if (trimmed.startsWith('data:')) {
-      return !/^data:image\/(png|jpe?g|gif|webp);/i.test(trimmed);
+      // SVGはスクリプトを含む可能性があるためブロック
+      if (trimmed.startsWith('data:image/svg')) {
+        return true;
+      }
+      // 安全な画像形式のみ許可
+      if (/^data:image\/(png|jpe?g|gif|webp);base64,/i.test(trimmed)) {
+        return false;
+      }
+      return true;
     }
+
+    // その他の危険なプロトコルをブロック
+    const dangerousProtocols = ['file:', 'ftp:', 'telnet:', 'ssh:'];
+    for (const protocol of dangerousProtocols) {
+      if (trimmed.startsWith(protocol)) {
+        return true;
+      }
+    }
+
     return false;
   }
 

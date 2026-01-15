@@ -20,6 +20,110 @@ function normalizeApplicationPassword(password) {
   return String(password ?? '').replace(/\s+/g, '');
 }
 
+// =============================================================================
+// セキュリティ: 画像URL検証（SSRF対策）
+// =============================================================================
+
+const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
+
+// プライベート/ローカルIPパターン
+const BLOCKED_IP_PATTERNS = [
+  /^127\./,                          // Localhost
+  /^10\./,                           // Private Class A
+  /^172\.(1[6-9]|2\d|3[01])\./,     // Private Class B
+  /^192\.168\./,                     // Private Class C
+  /^169\.254\./,                     // Link-local
+  /^0\./,                            // Current network
+  /^224\./,                          // Multicast
+  /^255\./,                          // Broadcast
+];
+
+/**
+ * ホスト名がプライベート/ローカルIPかどうかを判定
+ */
+function isPrivateOrLocalHost(hostname) {
+  // localhostのチェック
+  if (hostname === 'localhost' || hostname.endsWith('.localhost')) {
+    return true;
+  }
+
+  // IPv4アドレスのチェック
+  const ipv4Match = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (ipv4Match) {
+    for (const pattern of BLOCKED_IP_PATTERNS) {
+      if (pattern.test(hostname)) {
+        return true;
+      }
+    }
+  }
+
+  // IPv6 localhost
+  if (hostname === '[::1]' || hostname === '::1') {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * 画像URLを検証
+ * @returns {{ valid: boolean, reason?: string }}
+ */
+function validateImageUrl(url) {
+  try {
+    const parsed = new URL(url);
+
+    // http/httpsのみ許可
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return { valid: false, reason: 'Invalid protocol' };
+    }
+
+    // プライベート/ローカルIPをブロック
+    if (isPrivateOrLocalHost(parsed.hostname)) {
+      return { valid: false, reason: 'Private or local address not allowed' };
+    }
+
+    return { valid: true };
+  } catch {
+    return { valid: false, reason: 'Invalid URL' };
+  }
+}
+
+/**
+ * ファイル名をサニタイズ（パストラバーサル対策）
+ */
+function sanitizeFilename(filename) {
+  // パストラバーサル攻撃を防ぐ
+  let sanitized = filename.replace(/\.\./g, '');
+
+  // ディレクトリ区切り文字を削除
+  sanitized = sanitized.replace(/[/\\]/g, '');
+
+  // null バイトを削除
+  sanitized = sanitized.replace(/\0/g, '');
+
+  // 安全な文字のみを残す（英数字、ハイフン、アンダースコア、ドット）
+  sanitized = sanitized.replace(/[^a-zA-Z0-9._-]/g, '_');
+
+  // 拡張子がない場合はデフォルトを追加
+  if (!/\.[a-zA-Z0-9]+$/.test(sanitized)) {
+    sanitized += '.jpg';
+  }
+
+  // 長さを制限
+  if (sanitized.length > 200) {
+    const ext = sanitized.match(/\.[a-zA-Z0-9]+$/)?.[0] || '.jpg';
+    sanitized = sanitized.slice(0, 200 - ext.length) + ext;
+  }
+
+  // 空の場合はデフォルト名を使用
+  if (!sanitized || sanitized === '.jpg') {
+    sanitized = 'image_' + Date.now() + '.jpg';
+  }
+
+  return sanitized;
+}
+
 const TOKEN_TRANSPORT_HEADER = 'header';
 const TOKEN_TRANSPORT_QUERY = 'query';
 
@@ -34,6 +138,8 @@ class WordPressAPI {
     this.user = config.wpUser ? String(config.wpUser).trim() : '';
     this.tokenTransport = config.tokenTransport || TOKEN_TRANSPORT_HEADER;
     this.tokenTransportChanged = false;
+    // セキュリティ: クエリパラメータフォールバックへの同意フラグ
+    this.queryFallbackConsented = config.queryFallbackConsented || false;
     this.auth = this.user && password
       ? encodeBasicAuth(this.user, password)
       : '';
@@ -80,12 +186,25 @@ class WordPressAPI {
     };
   }
 
-  shouldFallbackToQuery(error, useQueryToken) {
+  /**
+   * エラーがクエリパラメータフォールバックの対象かどうかを判定
+   */
+  isQueryFallbackCandidate(error, useQueryToken) {
     if (!this.token || useQueryToken) return false;
     if (this.tokenTransport !== TOKEN_TRANSPORT_HEADER) return false;
     if (error.code === 'NETWORK_ERROR') return true;
     if (error.status === 403 && error.code === 'HTTP_ERROR') return true;
     return error.status === 401 && error.code === 'rest_not_logged_in';
+  }
+
+  /**
+   * クエリパラメータフォールバックを実行できるか判定
+   * （同意が必要な場合は同意済みかどうかをチェック）
+   */
+  shouldFallbackToQuery(error, useQueryToken) {
+    if (!this.isQueryFallbackCandidate(error, useQueryToken)) return false;
+    // セキュリティ: 同意がない場合はフォールバックしない
+    return this.queryFallbackConsented;
   }
 
   markTokenTransportQuery() {
@@ -104,6 +223,16 @@ class WordPressAPI {
       return await this.performRequest(endpoint, options, useQueryToken);
     } catch (error) {
       const normalized = this.normalizeError(error);
+
+      // フォールバック候補だが同意がない場合は、同意を求めるエラーを投げる
+      if (this.isQueryFallbackCandidate(normalized, useQueryToken) && !this.queryFallbackConsented) {
+        throw {
+          ...normalized,
+          needsQueryFallbackConsent: true,
+          consentMessage: 'ヘッダー認証が失敗しました。URLにトークンを含める方式に切り替えますか？'
+        };
+      }
+
       if (this.shouldFallbackToQuery(normalized, useQueryToken)) {
         try {
           const result = await this.performRequest(endpoint, options, true);
@@ -213,11 +342,35 @@ class WordPressAPI {
   }
 
   /**
-   * 画像をアップロード
+   * 画像をアップロード（セキュリティ強化版）
    */
   async uploadImage(imageUrl, filename) {
     try {
-      // 画像をfetch
+      // 1. URL検証（SSRF対策）
+      const validation = validateImageUrl(imageUrl);
+      if (!validation.valid) {
+        console.warn(`Image URL rejected: ${validation.reason} - ${imageUrl}`);
+        return null;
+      }
+
+      // 2. ファイル名サニタイズ（パストラバーサル対策）
+      const safeFilename = sanitizeFilename(filename);
+
+      // 3. HEADリクエストでサイズを事前チェック（可能な場合）
+      try {
+        const headResponse = await fetch(imageUrl, { method: 'HEAD' });
+        if (headResponse.ok) {
+          const contentLength = headResponse.headers.get('content-length');
+          if (contentLength && parseInt(contentLength, 10) > MAX_IMAGE_SIZE_BYTES) {
+            console.warn(`Image too large (HEAD): ${contentLength} bytes - ${imageUrl}`);
+            return null;
+          }
+        }
+      } catch {
+        // HEADリクエストが失敗しても続行（GETで再チェック）
+      }
+
+      // 4. 画像をfetch
       const imageResponse = await fetch(imageUrl);
       if (!imageResponse.ok) {
         throw new Error('画像の取得に失敗しました');
@@ -225,9 +378,21 @@ class WordPressAPI {
 
       const blob = await imageResponse.blob();
 
+      // 5. 実際のサイズをチェック
+      if (blob.size > MAX_IMAGE_SIZE_BYTES) {
+        console.warn(`Image too large: ${blob.size} bytes - ${imageUrl}`);
+        return null;
+      }
+
+      // 6. MIMEタイプを検証（画像であることを確認）
+      if (!blob.type.startsWith('image/')) {
+        console.warn(`Not an image: ${blob.type} - ${imageUrl}`);
+        return null;
+      }
+
       // WordPress Media APIにアップロード
       const formData = new FormData();
-      formData.append('file', blob, filename);
+      formData.append('file', blob, safeFilename);
 
       const media = await this.request('/media', {
         method: 'POST',
@@ -454,9 +619,16 @@ async function handleMessage(message) {
  */
 async function handleTestConnection(data) {
   const tokenTransport = await resolveTokenTransport(data);
+  // 同意状態を取得（dataから渡されるか、ストレージから取得）
+  let queryFallbackConsented = data.queryFallbackConsented || false;
+  if (!queryFallbackConsented) {
+    const stored = await chrome.storage.local.get(['queryFallbackConsent']);
+    queryFallbackConsented = stored.queryFallbackConsent || false;
+  }
+
   let api;
   try {
-    api = new WordPressAPI({ ...data, tokenTransport });
+    api = new WordPressAPI({ ...data, tokenTransport, queryFallbackConsented });
     const user = await api.testConnection();
     return {
       success: true,
@@ -465,6 +637,17 @@ async function handleTestConnection(data) {
       }
     };
   } catch (error) {
+    // 同意が必要な場合は特別なレスポンスを返す
+    if (error.needsQueryFallbackConsent) {
+      return {
+        success: false,
+        needsQueryFallbackConsent: true,
+        error: {
+          code: 'NEEDS_QUERY_FALLBACK_CONSENT',
+          message: error.consentMessage
+        }
+      };
+    }
     const formatted = getErrorMessage(error);
     return {
       success: false,
@@ -486,7 +669,8 @@ async function handleCreatePost(data) {
     'wpToken',
     'settings',
     'tokenTransport',
-    'tokenTransportUrl'
+    'tokenTransportUrl',
+    'queryFallbackConsent'
   ]);
   let api;
   try {
@@ -498,7 +682,8 @@ async function handleCreatePost(data) {
       };
     }
     const tokenTransport = await resolveTokenTransport(config, config);
-    api = new WordPressAPI({ ...config, tokenTransport });
+    const queryFallbackConsented = config.queryFallbackConsent || false;
+    api = new WordPressAPI({ ...config, tokenTransport, queryFallbackConsented });
     const autoCreate = config.settings?.autoCreateTerms || false;
 
     // 画像を処理
