@@ -21,6 +21,11 @@
    * 初期化
    */
   function init() {
+    const platform = detectPlatform();
+    if (platform !== 'unknown') {
+      document.documentElement.classList.add(`wpbp-platform-${platform}`);
+    }
+
     // 初回スキャン
     setTimeout(scanForMarkdownBlocks, 1000);
 
@@ -143,7 +148,7 @@
         blocks.forEach(block => {
           const content = block.textContent || '';
           if (!isMarkdownContent(content, block)) return;
-          const inlineTarget = findInlineTarget(block);
+          const inlineTarget = findInlineTarget(block, platform);
           if (processedBlocks.has(block)) {
             if (inlineTarget) {
               syncActionGroupLayout(block, inlineTarget);
@@ -185,7 +190,7 @@
       codeBlocks.forEach(block => {
         const content = block.textContent || '';
         if (!isMarkdownContent(content, block)) return;
-        const inlineTarget = findInlineTarget(block);
+        const inlineTarget = findInlineTarget(block, platform);
 
         if (processedBlocks.has(block)) {
           if (inlineTarget) {
@@ -252,7 +257,7 @@
     // 親要素にも既にボタンがないかチェック（重複防止）
     if (targetElement.closest('.wp-post-btn-wrapper')) return;
 
-    const inlineTarget = findInlineTarget(block);
+    const inlineTarget = findInlineTarget(block, platform);
     const infoTarget = findInfoSourceTarget(block, platform);
     const baseButton = createPostButton(inlineTarget ? '投稿' : '📤 WPに投稿', content);
 
@@ -334,7 +339,8 @@
   /**
    * コピーボタンの位置に追従させる対象を探す
    */
-  function findInlineTarget(block) {
+  function findInlineTarget(block, platform) {
+    if (platform !== 'chatgpt') return null;
     const selector = COPY_BUTTON_SELECTORS.join(',');
     const copyButtonLabels = new Set([
       'コピーする',
