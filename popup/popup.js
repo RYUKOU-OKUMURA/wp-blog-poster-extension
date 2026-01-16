@@ -472,6 +472,9 @@ function showMainScreen(config) {
   elements.wpPassword.value = config.wpPassword;
   elements.wpToken.value = config.wpToken || '';
   tempConfig = { ...config };
+
+  // Show tabs
+  showTabs();
 }
 
 /**
@@ -517,5 +520,37 @@ function showLoading(show) {
   elements.loading.style.display = show ? 'flex' : 'none';
 }
 
+// Tab functionality
+function setupTabNavigation() {
+  const tabButtons = document.querySelectorAll('.tab-btn');
+  const tabContents = document.querySelectorAll('.tab-content');
+
+  tabButtons.forEach(button => {
+    button.addEventListener('click', () => {
+      const tabName = button.getAttribute('data-tab');
+
+      // すべてのタブボタンと コンテンツを非アクティブ化
+      tabButtons.forEach(btn => btn.classList.remove('active'));
+      tabContents.forEach(content => content.classList.remove('active'));
+
+      // クリックされたタブをアクティブ化
+      button.classList.add('active');
+      const activeContent = document.querySelector(`[data-tab="${tabName}"]`);
+      if (activeContent) {
+        activeContent.classList.add('active');
+      }
+    });
+  });
+}
+
+// Show tabs after setup completion
+function showTabs() {
+  document.getElementById('tabNav').style.display = 'flex';
+  document.getElementById('mainScreen').classList.add('active');
+}
+
 // Initialize on DOM ready
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => {
+  init();
+  setupTabNavigation();
+});

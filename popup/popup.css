@@ -520,3 +520,377 @@ body {
   color: #666;
   font-size: 14px;
 }
+
+/* ===========================================
+   セレクタ設定 - Tab Navigation
+   =========================================== */
+
+.tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  margin: -14px -14px 14px -14px;
+  background: var(--surface-2);
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.tab-btn:hover {
+  color: var(--text);
+}
+
+.tab-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  background: var(--surface);
+}
+
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+/* Selector Screen */
+.selector-screen {
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.selector-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.selector-header {
+  padding: 10px 0;
+}
+
+.selector-header h2 {
+  font-size: 15px;
+  margin-bottom: 6px;
+}
+
+.selector-header p {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.selector-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.version-info {
+  background: var(--surface-2);
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.version-info p {
+  margin: 4px 0;
+  display: flex;
+  justify-content: space-between;
+}
+
+.version-info span {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.form-section {
+  padding: 12px;
+  background: var(--surface-2);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.form-section h3 {
+  font-size: 13px;
+  margin-bottom: 12px;
+  color: var(--text);
+}
+
+.priority-input {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.priority-input input[type="range"] {
+  flex: 1;
+}
+
+.priority-input input[type="number"] {
+  width: 50px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+/* Rules List */
+.rules-section {
+  margin-top: 16px;
+}
+
+.rules-section h3 {
+  font-size: 13px;
+  margin-bottom: 10px;
+  color: var(--text);
+}
+
+.rules-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.rule-item {
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.rule-item-info {
+  flex: 1;
+}
+
+.rule-name {
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.rule-selector {
+  color: var(--muted);
+  font-family: monospace;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rule-item-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.rule-item-actions button {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.2s ease;
+}
+
+.rule-item-actions button:hover {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.rule-item.disabled {
+  opacity: 0.6;
+}
+
+.empty-message {
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+  padding: 20px 0;
+}
+
+/* Test Result Panel */
+.test-result {
+  padding: 12px;
+  background: #fffbf0;
+  border: 1px solid #ffd980;
+  border-radius: 8px;
+  margin: 12px 0;
+}
+
+.test-result.success {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
+.test-result.error {
+  background: #fef2f2;
+  border-color: #fca5a5;
+}
+
+.result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.result-header h4 {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.close-btn {
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.result-content {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.result-content .match-count {
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.result-content .preview {
+  margin: 8px 0;
+  padding: 6px 8px;
+  background: var(--surface-2);
+  border-radius: 4px;
+  border-left: 2px solid var(--accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Test Screen */
+.test-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.test-container h2 {
+  font-size: 15px;
+}
+
+.test-container > p {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.test-info {
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.test-run-result {
+  padding: 12px;
+  background: var(--surface-2);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.test-run-result h3 {
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+/* Logs Screen */
+.logs-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.logs-container h2 {
+  font-size: 15px;
+}
+
+.log-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.log-controls select {
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.logs-list {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.log-item {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-family: monospace;
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.log-item.debug {
+  color: #888;
+}
+
+.log-item.info {
+  color: var(--text);
+}
+
+.log-item.warn {
+  color: #d97706;
+  background: #fffbf0;
+}
+
+.log-item.error {
+  color: var(--error-text);
+  background: var(--error-bg);
+}
+
+.log-item:last-child {
+  border-bottom: none;
+}

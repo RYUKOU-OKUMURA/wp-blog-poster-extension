@@ -1617,6 +1617,80 @@
       .replace(/'/g, '&#039;');
   }
 
+  /**
+   * セレクタテスト実行（ポップアップからのメッセージに応答）
+   */
+  function testSelector(selector, fallback, ruleType) {
+    try {
+      const selectors = selector.split(',').map(s => s.trim());
+      let elements = [];
+
+      // プライマリセレクタを試行
+      for (const sel of selectors) {
+        try {
+          elements = Array.from(document.querySelectorAll(sel));
+          if (elements.length > 0) {
+            break; // マッチしたら終了
+          }
+        } catch (e) {
+          console.warn('Selector test error:', sel, e);
+        }
+      }
+
+      // マッチしなかった場合、フォールバック試行
+      if (elements.length === 0 && fallback) {
+        try {
+          elements = Array.from(document.querySelectorAll(fallback));
+        } catch (e) {
+          console.warn('Fallback selector test error:', fallback, e);
+        }
+      }
+
+      // コンテンツ抽出
+      const previews = [];
+      elements.slice(0, 3).forEach(el => {
+        let content = '';
+        if (ruleType === 'text') {
+          content = el.textContent;
+        } else if (ruleType === 'html') {
+          content = el.innerHTML;
+        } else if (ruleType === 'count') {
+          content = `要素数: ${elements.length}`;
+        } else if (ruleType === 'attribute') {
+          // 属性テストの場合は単にマッチ数のみ
+          content = `属性取得: ${el.getAttribute('data-test') || ''}`;
+        }
+        if (content && content.trim()) {
+          previews.push(content.trim().substring(0, 200));
+        }
+      });
+
+      return {
+        success: true,
+        data: {
+          matchCount: elements.length,
+          previews: previews,
+          ruleType: ruleType
+        }
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * メッセージリスナー
+   */
+  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.type === 'TEST_SELECTOR') {
+      const result = testSelector(request.selector, request.fallback, request.ruleType);
+      sendResponse(result);
+    }
+  });
+
   // 初期化
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);

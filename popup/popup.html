@@ -13,6 +13,14 @@
       <button id="helpBtn" class="icon-btn" title="ヘルプ">?</button>
     </header>
 
+    <!-- タブナビゲーション -->
+    <nav class="tabs" id="tabNav" style="display: none;">
+      <button class="tab-btn active" data-tab="main">基本設定</button>
+      <button class="tab-btn" data-tab="selector">セレクタ設定</button>
+      <button class="tab-btn" data-tab="test">テスト</button>
+      <button class="tab-btn" data-tab="logs">ログ</button>
+    </nav>
+
     <!-- 未設定時: セットアップウィザード -->
     <div id="setupWizard" class="wizard">
       <!-- ステップ1: URL -->
@@ -127,7 +135,7 @@
     </div>
 
     <!-- 設定完了後: メイン画面 -->
-    <div id="mainScreen" class="main-screen" style="display: none;">
+    <div id="mainScreen" class="main-screen tab-content" data-tab="main" style="display: none;">
       <div class="status-bar">
         <span class="status-icon">✅</span>
         <span>WordPressと接続中</span>
@@ -170,6 +178,163 @@
       </div>
     </div>
 
+    <!-- セレクタ設定タブ -->
+    <div id="selectorScreen" class="selector-screen tab-content" data-tab="selector" style="display: none;">
+      <div class="selector-container">
+        <div class="selector-header">
+          <h2>セレクタルール設定</h2>
+          <p>ChatGPT・Claude・Geminiのマークダウン要素を自動抽出するためのセレクタを設定します</p>
+        </div>
+
+        <div class="selector-content">
+          <!-- サービス選択 -->
+          <div class="form-group">
+            <label for="serviceSelect">サービス選択</label>
+            <select id="serviceSelect">
+              <option value="chatgpt">ChatGPT (chatgpt.com)</option>
+              <option value="claude">Claude (claude.ai)</option>
+              <option value="gemini">Gemini (gemini.google.com)</option>
+            </select>
+          </div>
+
+          <!-- バージョン表示 -->
+          <div class="version-info">
+            <p>現在のバージョン: <span id="schemaVersion">1.0</span></p>
+            <p>最終更新: <span id="lastUpdated">未設定</span></p>
+          </div>
+
+          <!-- セレクタルール入力フォーム -->
+          <div class="form-section">
+            <h3>ルールを追加・編集</h3>
+
+            <div class="form-group">
+              <label for="ruleName">ルール名 *</label>
+              <input type="text" id="ruleName" placeholder="例: markdownHeadings" maxlength="50">
+              <p class="hint">英数字とアンダースコアのみ使用可能</p>
+              <p class="error" id="ruleNameError"></p>
+            </div>
+
+            <div class="form-group">
+              <label for="selector">セレクタ *</label>
+              <textarea id="selector" placeholder="例: span&#10;例: article > span&#10;例: div.content, span.text" rows="3"></textarea>
+              <p class="hint">複数セレクタはカンマで区切って指定可能</p>
+              <p class="error" id="selectorError"></p>
+            </div>
+
+            <div class="form-group">
+              <label for="ruleType">抽出タイプ *</label>
+              <select id="ruleType">
+                <option value="text">テキスト抽出 (textContent)</option>
+                <option value="html">HTML抽出 (innerHTML)</option>
+                <option value="attribute">属性値抽出</option>
+                <option value="count">要素数カウント</option>
+              </select>
+            </div>
+
+            <div class="form-group" id="attributeNameGroup" style="display: none;">
+              <label for="attributeName">属性名 *</label>
+              <input type="text" id="attributeName" placeholder="例: data-test, class">
+              <p class="error" id="attributeNameError"></p>
+            </div>
+
+            <div class="form-group">
+              <label for="fallbackSelector">フォールバックセレクタ</label>
+              <input type="text" id="fallbackSelector" placeholder="マッチしない場合の代替セレクタ">
+              <p class="hint">セレクタが失敗した場合に使用されます</p>
+            </div>
+
+            <div class="form-group">
+              <label for="ruleDescription">説明</label>
+              <textarea id="ruleDescription" placeholder="このルールの説明を記入" rows="2"></textarea>
+            </div>
+
+            <div class="form-group">
+              <label for="priority">優先度 (0-100)</label>
+              <div class="priority-input">
+                <input type="range" id="prioritySlider" min="0" max="100" value="50">
+                <input type="number" id="priority" min="0" max="100" value="50">
+              </div>
+              <p class="hint">値が高いほど優先的に実行されます</p>
+            </div>
+
+            <div class="form-group">
+              <label>
+                <input type="checkbox" id="ruleEnabled" checked>
+                このルールを有効にする
+              </label>
+            </div>
+
+            <div class="btn-group">
+              <button id="testSelectorBtn" class="btn secondary">テスト実行</button>
+              <button id="clearRuleBtn" class="btn secondary">クリア</button>
+              <button id="saveRuleBtn" class="btn primary">ルールを保存</button>
+            </div>
+          </div>
+
+          <!-- テスト結果 -->
+          <div id="testResultPanel" class="test-result" style="display: none;">
+            <div class="result-header">
+              <h4>テスト結果</h4>
+              <button class="close-btn" onclick="this.parentElement.parentElement.style.display='none'">×</button>
+            </div>
+            <div id="testResultContent" class="result-content"></div>
+          </div>
+
+          <!-- ルール一覧 -->
+          <div class="rules-section">
+            <h3>ルール一覧</h3>
+            <div id="rulesList" class="rules-list">
+              <p class="empty-message">ルールが設定されていません</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- テストタブ -->
+    <div id="testScreen" class="test-screen tab-content" data-tab="test" style="display: none;">
+      <div class="test-container">
+        <h2>セレクタテスト実行</h2>
+        <p>現在のページでセレクタをテストして、マッチ状況を確認できます</p>
+
+        <div class="test-info">
+          <p>テスト対象ページ: <span id="testPageUrl">-</span></p>
+          <button id="refreshTestBtn" class="btn secondary">更新</button>
+        </div>
+
+        <div id="testRunResult" class="test-run-result" style="display: none;">
+          <h3>テスト結果</h3>
+          <div id="testRunContent"></div>
+        </div>
+
+        <div class="btn-group">
+          <button id="runAllTestsBtn" class="btn primary">全ルールをテスト</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ログタブ -->
+    <div id="logsScreen" class="logs-screen tab-content" data-tab="logs" style="display: none;">
+      <div class="logs-container">
+        <h2>実行ログ</h2>
+
+        <div class="log-controls">
+          <select id="logLevelFilter">
+            <option value="all">すべて</option>
+            <option value="debug">DEBUG</option>
+            <option value="info">INFO</option>
+            <option value="warn">WARN</option>
+            <option value="error">ERROR</option>
+          </select>
+          <button id="clearLogsBtn" class="btn secondary">ログをクリア</button>
+        </div>
+
+        <div id="logsList" class="logs-list">
+          <p class="empty-message">ログがありません</p>
+        </div>
+      </div>
+    </div>
+
     <!-- ローディング -->
     <div id="loading" class="loading" style="display: none;">
       <div class="spinner"></div>
@@ -177,6 +342,7 @@
     </div>
   </div>
 
+  <script src="selector-manager.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>
