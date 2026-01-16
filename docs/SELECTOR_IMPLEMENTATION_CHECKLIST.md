@@ -1,223 +1,163 @@
 # セレクタ設定システム実装チェックリスト
 
-## フェーズ 1: ポップアップUI開発
+## フェーズ 1: ポップアップUI開発 ✅ 実装完了
 
 ### 1.1 HTML 構造
-- [ ] セレクタ設定タブのHTML作成
-- [ ] サービス選択ドロップダウン実装
-  - [ ] ChatGPT
-  - [ ] Claude
-  - [ ] Gemini
-- [ ] セレクタルール入力フォーム実装
-  - [ ] ruleName テキスト入力
-  - [ ] selector テキスト入力（複数行対応）
-  - [ ] type セレクト（text, html, attribute, count）
-  - [ ] attributeName テキスト入力（条件付き表示）
-  - [ ] description テキスト入力
-  - [ ] fallback テキスト入力
-  - [ ] enabled チェックボックス
-  - [ ] priority スライダー（0-100）
-- [ ] ルール一覧テーブル
-  - [ ] ルール名
-  - [ ] セレクタ（省略表示）
-  - [ ] 有効/無効ステータス
-  - [ ] 編集・削除ボタン
+- [x] セレクタ設定タブのHTML作成
+- [x] サービス選択ドロップダウン実装
+  - [x] ChatGPT
+  - [x] Claude
+  - [x] Gemini
+- [x] セレクタルール入力フォーム実装
+  - [x] ruleName テキスト入力
+  - [x] selector テキスト入力（複数行対応）
+  - [x] type セレクト（text, html, attribute, count）
+  - [x] attributeName テキスト入力（条件付き表示）
+  - [x] description テキスト入力
+  - [x] fallback テキスト入力
+  - [x] enabled チェックボックス
+  - [x] priority スライダー（0-100）
+- [x] ルール一覧テーブル
+  - [x] ルール名
+  - [x] セレクタ（省略表示）
+  - [x] 有効/無効ステータス
+  - [x] 編集・削除ボタン
 
 ### 1.2 CSS スタイリング
-- [ ] レスポンシブレイアウト（ポップアップサイズ: 450x600px）
-- [ ] フォーム要素のスタイリング
-- [ ] ボタンデザイン
-  - [ ] プライマリボタン（保存）
-  - [ ] セカンダリボタン（テスト実行）
-  - [ ] 削除ボタン（警告色）
-- [ ] バリデーションエラーメッセージ表示
-- [ ] ローディング状態の表示
-- [ ] トグルペインアニメーション
+- [x] レスポンシブレイアウト（ポップアップサイズ: 450x600px）
+- [x] フォーム要素のスタイリング
+- [x] ボタンデザイン
+  - [x] プライマリボタン（保存）
+  - [x] セカンダリボタン（テスト実行）
+  - [x] 削除ボタン（警告色）
+- [x] バリデーションエラーメッセージ表示
+- [x] ローディング状態の表示
+- [x] トグルペインアニメーション
 
-### 1.3 JavaScript (popup.js) - UI ロジック
-- [ ] サービス選択時のスキーマロード機能
-- [ ] フォーム入力値の取得・検証
-  - [ ] 必須項目チェック
-  - [ ] CSS セレクタ構文検証
-  - [ ] ruleName ユニーク性チェック
-- [ ] 条件付きフィールド表示
-  - [ ] `type === 'attribute'` で attributeName 表示
-- [ ] priority スライダーの値表示更新
-- [ ] ルール追加/編集/削除機能
-- [ ] クリア・キャンセル機能
-- [ ] フォーム状態の管理（dirty flag）
+### 1.3 JavaScript (popup.js/selector-manager.js) - UI ロジック ✅ 完了
+- [x] サービス選択時のスキーマロード機能
+- [x] フォーム入力値の取得・検証
+  - [x] 必須項目チェック
+  - [x] CSS セレクタ構文検証
+  - [x] ruleName ユニーク性チェック
+- [x] 条件付きフィールド表示
+  - [x] `type === 'attribute'` で attributeName 表示
+- [x] priority スライダーの値表示更新
+- [x] ルール追加/編集/削除機能
+- [x] クリア・キャンセル機能
+- [x] フォーム状態の管理（dirty flag）
 
 ---
 
-## フェーズ 2: テスト実行エンジン
+## フェーズ 2: テスト実行エンジン ✅ 実装完了
 
 ### 2.1 テスト実行ボタン機能
-- [ ] 現在のタブで content.js と通信
-  ```javascript
-  chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
-    chrome.tabs.sendMessage(tabs[0].id, {
-      type: 'TEST_SELECTOR',
-      selector: formData.selector
-    });
-  });
-  ```
-- [ ] test 結果を受け取る
-- [ ] マッチ数を表示
-- [ ] マッチ要素のプレビュー表示（最初の3件）
-- [ ] エラーハンドリング表示
-  - [ ] "セレクタが無効です"
-  - [ ] "マッチする要素がありません"
-  - [ ] "このページで実行できません"
+- [x] 現在のタブで content.js と通信
+- [x] test 結果を受け取る
+- [x] マッチ数を表示
+- [x] マッチ要素のプレビュー表示（最初の3件）
+- [x] エラーハンドリング表示
 
 ### 2.2 プレビュー表示
-- [ ] テキスト抽出プレビュー
-- [ ] HTML 抽出プレビュー（エスケープ処理）
-- [ ] 属性値プレビュー
-- [ ] カウント結果表示
-- [ ] スクロール可能な表示領域
+- [x] テキスト抽出プレビュー
+- [x] HTML 抽出プレビュー（エスケープ処理）
+- [x] 属性値プレビュー
+- [x] カウント結果表示
+- [x] スクロール可能な表示領域
 
 ---
 
-## フェーズ 3: ストレージ管理
+## フェーズ 3: ストレージ管理 ✅ 実装完了
 
 ### 3.1 Storage API の実装
-- [ ] 初期スキーマの作成・保存
-  ```javascript
-  const defaultSchemas = {
-    chatgpt: { version: '1.0', service: 'chatgpt', rules: [] },
-    claude: { version: '1.0', service: 'claude', rules: [] },
-    gemini: { version: '1.0', service: 'gemini', rules: [] }
-  };
-  ```
-- [ ] スキーマの読み込み機能
-- [ ] スキーマの保存機能
-- [ ] バージョンの自動インクリメント
-- [ ] lastUpdated タイムスタンプの自動更新
-- [ ] Storage 容量チェック（Chrome Storage には容量制限あり）
+- [x] 初期スキーマの作成・保存
+- [x] スキーマの読み込み機能
+- [x] スキーマの保存機能
+- [x] バージョンの自動インクリメント
+- [x] lastUpdated タイムスタンプの自動更新
+- [x] Storage 容量チェック
 
 ### 3.2 データバリデーション
-- [ ] スキーマの型チェック
-- [ ] ルールの整合性チェック
-- [ ] 破壊的変更の検出
+- [x] スキーマの型チェック
+- [x] ルールの整合性チェック
+- [x] 破壊的変更の検出
 
 ### 3.3 バックアップ・復元機能
-- [ ] JSON 形式でのエクスポート
-  ```javascript
-  const backup = JSON.stringify(data.selectorSchemas, null, 2);
-  // ダウンロード処理
-  ```
-- [ ] JSON のインポート機能
-- [ ] 復元時の検証
+- [ ] JSON 形式でのエクスポート（将来実装）
+- [ ] JSON のインポート機能（将来実装）
+- [ ] 復元時の検証（将来実装）
 
 ---
 
-## フェーズ 4: Content Script (content.js) 実装
+## フェーズ 4: Content Script (content.js) 実装 ✅ 実装完了
 
 ### 4.1 サービス判定機能
-- [ ] URL パターンマッチング
-  ```javascript
-  const services = {
-    'chatgpt.com': 'chatgpt',
-    'chat.openai.com': 'chatgpt',
-    'claude.ai': 'claude',
-    'gemini.google.com': 'gemini'
-  };
-  ```
-- [ ] 判定結果の キャッシング（パフォーマンス）
+- [x] URL パターンマッチング
+- [x] 判定結果の キャッシング（パフォーマンス）
 
 ### 4.2 ストレージからスキーマ取得
-- [ ] `chrome.storage.local.get()` で スキーマ取得
-- [ ] 対応するサービスのスキーマ選択
-- [ ] ルールの優先度順ソート
+- [x] `chrome.storage.local.get()` で スキーマ取得
+- [x] 対応するサービスのスキーマ選択
+- [x] ルールの優先度順ソート
 
 ### 4.3 セレクタ実行エンジン
-- [ ] ルールの反復処理（優先度順）
-- [ ] `document.querySelectorAll()` 実行
-- [ ] エラー時のフォールバック処理
-  ```javascript
-  try {
-    elements = document.querySelectorAll(rule.selector);
-  } catch (error) {
-    if (rule.fallback) {
-      elements = document.querySelectorAll(rule.fallback);
-    }
-  }
-  ```
-- [ ] ルールの disabled 状態チェック
+- [x] ルールの反復処理（優先度順）
+- [x] `document.querySelectorAll()` 実行
+- [x] エラー時のフォールバック処理
+- [x] ルールの disabled 状態チェック
 
 ### 4.4 コンテンツ抽出
-- [ ] `type` に応じた抽出処理
-  - [ ] `type: 'text'` → `textContent`
-  - [ ] `type: 'html'` → `innerHTML`
-  - [ ] `type: 'attribute'` → `getAttribute()`
-  - [ ] `type: 'count'` → `length`
-- [ ] 空要素のフィルタリング
-- [ ] テキストのトリム処理
+- [x] `type` に応じた抽出処理
+  - [x] `type: 'text'` → `textContent`
+  - [x] `type: 'html'` → `innerHTML`
+  - [x] `type: 'attribute'` → `getAttribute()`
+  - [x] `type: 'count'` → `length`
+- [x] 空要素のフィルタリング
+- [x] テキストのトリム処理
 
 ### 4.5 メッセージハンドリング
-- [ ] ポップアップからの `TEST_SELECTOR` メッセージ受け取り
-  ```javascript
-  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.type === 'TEST_SELECTOR') {
-      const result = testSelector(request.selector);
-      sendResponse({ success: true, data: result });
-    }
-  });
-  ```
-- [ ] バックグラウンドスクリプトからのルール更新通知受け取り
+- [x] ポップアップからの `TEST_SELECTOR` メッセージ受け取り
+- [x] バックグラウンドスクリプトからのルール更新通知受け取り
 
 ### 4.6 パフォーマンス最適化
-- [ ] セレクタ実行結果のメモ化
-- [ ] DOM クエリの頻度制限
-- [ ] オフスクリーン要素の除外オプション
+- [x] セレクタ実行結果のメモ化
+- [x] DOM クエリの頻度制限
+- [x] オフスクリーン要素の除外オプション
 
 ---
 
-## フェーズ 5: バックグラウンドスクリプト (background.js)
+## フェーズ 5: バックグラウンドスクリプト (background.js) ✅ 実装完了
 
 ### 5.1 メッセージハンドリング
-- [ ] ポップアップからのルール保存リクエスト受け取り
-- [ ] Content Script への更新通知送信
-- [ ] エラーログの記録
+- [x] ポップアップからのルール保存リクエスト受け取り
+- [x] Content Script への更新通知送信
+- [x] エラーログの記録
 
 ### 5.2 バージョン管理
-- [ ] バージョン変更の検出
-- [ ] 移行スクリプトの実行（major version up 時）
+- [x] バージョン変更の検出
+- [x] 移行スクリプトの実行（major version up 時）
 
 ---
 
-## フェーズ 6: バリデーション & エラーハンドリング
+## フェーズ 6: バリデーション & エラーハンドリング ✅ 実装完了
 
 ### 6.1 セレクタバリデーション
-- [ ] CSS セレクタ構文チェック
-  ```javascript
-  function validateSelector(selector) {
-    try {
-      document.querySelector(selector);
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-  ```
-- [ ] 危険なパターンの検出
-  - [ ] `javascript:` を含む
-  - [ ] `onerror`, `onclick` を含む
-  - [ ] `<script>` を含む
+- [x] CSS セレクタ構文チェック
+- [x] 危険なパターンの検出
 
 ### 6.2 フォームバリデーション
-- [ ] ruleName の空チェック
-  - [ ] 英数字とアンダースコアのみ許可
-  - [ ] 先頭は英文字のみ
-- [ ] selector の空チェック
-- [ ] type が有効な値か確認
-- [ ] attributeName（type が 'attribute' の場合）の空チェック
-- [ ] priority が 0-100 の範囲か
+- [x] ruleName の空チェック
+  - [x] 英数字とアンダースコアのみ許可
+  - [x] 先頭は英文字のみ
+- [x] selector の空チェック
+- [x] type が有効な値か確認
+- [x] attributeName（type が 'attribute' の場合）の空チェック
+- [x] priority が 0-100 の範囲か
 
 ### 6.3 エラーメッセージ
-- [ ] 日本語の明確なエラーメッセージ
-- [ ] 修正方法のヒント提示
-- [ ] エラーのログ記録
+- [x] 日本語の明確なエラーメッセージ
+- [x] 修正方法のヒント提示
+- [x] エラーのログ記録
 
 ---
 
