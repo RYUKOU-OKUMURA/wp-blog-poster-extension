@@ -2,61 +2,69 @@
  * ブログ投稿アシスタント - Popup Script
  */
 
-// DOM Elements
-const elements = {
-  // Setup Wizard
-  setupWizard: document.getElementById('setupWizard'),
-  step1: document.getElementById('step1'),
-  step2: document.getElementById('step2'),
-  step3: document.getElementById('step3'),
-  testResult: document.getElementById('testResult'),
-
-  // Inputs
-  wpUrl: document.getElementById('wpUrl'),
-  wpUser: document.getElementById('wpUser'),
-  wpPassword: document.getElementById('wpPassword'),
-  wpToken: document.getElementById('wpToken'),
-
-  // Errors
-  urlError: document.getElementById('urlError'),
-  userError: document.getElementById('userError'),
-  passwordError: document.getElementById('passwordError'),
-
-  // Buttons
-  toStep2: document.getElementById('toStep2'),
-  toStep3: document.getElementById('toStep3'),
-  backToStep1: document.getElementById('backToStep1'),
-  backToStep2: document.getElementById('backToStep2'),
-  testConnection: document.getElementById('testConnection'),
-  togglePassword: document.getElementById('togglePassword'),
-  saveSettings: document.getElementById('saveSettings'),
-  retrySetup: document.getElementById('retrySetup'),
-  openGuide: document.getElementById('openGuide'),
-  openGuidePassword: document.getElementById('openGuidePassword'),
-  helpBtn: document.getElementById('helpBtn'),
-
-  // Test Result
-  testSuccess: document.getElementById('testSuccess'),
-  testFailed: document.getElementById('testFailed'),
-  connectedUrl: document.getElementById('connectedUrl'),
-  connectedUser: document.getElementById('connectedUser'),
-  testErrorMessage: document.getElementById('testErrorMessage'),
-  errorHints: document.getElementById('errorHints'),
-
-  // Main Screen
-  mainScreen: document.getElementById('mainScreen'),
-  currentUrl: document.getElementById('currentUrl'),
-  openSettings: document.getElementById('openSettings'),
-  reTestConnection: document.getElementById('reTestConnection'),
-  autoCreateTerms: document.getElementById('autoCreateTerms'),
-
-  // Loading
-  loading: document.getElementById('loading')
-};
+// DOM Elements - will be initialized after DOM is ready
+let elements = {};
 
 // State
 let currentStep = 1;
 let tempConfig = {};
+
+/**
+ * Initialize DOM elements
+ */
+function initializeElements() {
+  elements = {
+    // Setup Wizard
+    setupWizard: document.getElementById('setupWizard'),
+    step1: document.getElementById('step1'),
+    step2: document.getElementById('step2'),
+    step3: document.getElementById('step3'),
+    testResult: document.getElementById('testResult'),
+
+    // Inputs
+    wpUrl: document.getElementById('wpUrl'),
+    wpUser: document.getElementById('wpUser'),
+    wpPassword: document.getElementById('wpPassword'),
+    wpToken: document.getElementById('wpToken'),
+
+    // Errors
+    urlError: document.getElementById('urlError'),
+    userError: document.getElementById('userError'),
+    passwordError: document.getElementById('passwordError'),
+
+    // Buttons
+    toStep2: document.getElementById('toStep2'),
+    toStep3: document.getElementById('toStep3'),
+    backToStep1: document.getElementById('backToStep1'),
+    backToStep2: document.getElementById('backToStep2'),
+    testConnection: document.getElementById('testConnection'),
+    togglePassword: document.getElementById('togglePassword'),
+    saveSettings: document.getElementById('saveSettings'),
+    retrySetup: document.getElementById('retrySetup'),
+    openGuide: document.getElementById('openGuide'),
+    openGuidePassword: document.getElementById('openGuidePassword'),
+    helpBtn: document.getElementById('helpBtn'),
+
+    // Test Result
+    testSuccess: document.getElementById('testSuccess'),
+    testFailed: document.getElementById('testFailed'),
+    connectedUrl: document.getElementById('connectedUrl'),
+    connectedUser: document.getElementById('connectedUser'),
+    testErrorMessage: document.getElementById('testErrorMessage'),
+    errorHints: document.getElementById('errorHints'),
+
+    // Main Screen
+    mainScreen: document.getElementById('mainScreen'),
+    currentUrl: document.getElementById('currentUrl'),
+    openSettings: document.getElementById('openSettings'),
+    reTestConnection: document.getElementById('reTestConnection'),
+    autoCreateTerms: document.getElementById('autoCreateTerms'),
+
+    // Loading
+    loading: document.getElementById('loading')
+  };
+  console.log('[Popup] Elements initialized');
+}
 
 /**
  * Initialize popup
@@ -567,8 +575,22 @@ function showTabs() {
   }
 }
 
-// Initialize on DOM ready
-document.addEventListener('DOMContentLoaded', () => {
+// Initialize immediately - handle both DOMContentLoaded and already-loaded cases
+function initializePopup() {
+  console.log('[Popup] Initialization started');
+  initializeElements();
   init();
   setupTabNavigation();
-});
+  console.log('[Popup] Initialization complete');
+}
+
+// Check if DOM is already ready
+if (document.readyState === 'loading') {
+  // DOM is still loading
+  console.log('[Popup] DOM is loading, waiting for DOMContentLoaded');
+  document.addEventListener('DOMContentLoaded', initializePopup);
+} else {
+  // DOM is already loaded (scripts loaded at end of body)
+  console.log('[Popup] DOM already loaded, initializing immediately');
+  initializePopup();
+}

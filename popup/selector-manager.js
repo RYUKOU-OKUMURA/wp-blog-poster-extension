@@ -5,11 +5,13 @@
 
 class SelectorManager {
   constructor() {
+    console.log('[SelectorManager] Constructor called');
     this.currentService = 'chatgpt';
     this.currentSchema = null;
     this.editingRuleIndex = null;
     this.logs = [];
     this.init();
+    console.log('[SelectorManager] Initialization complete');
   }
 
   // 初期化
@@ -20,37 +22,75 @@ class SelectorManager {
 
   // イベントリスナー設定
   setupEventListeners() {
-    // サービス選択
-    document.getElementById('serviceSelect').addEventListener('change', (e) => {
-      this.currentService = e.target.value;
-      this.loadSchema(e.target.value);
-    });
+    try {
+      // サービス選択
+      const serviceSelect = document.getElementById('serviceSelect');
+      if (serviceSelect) {
+        serviceSelect.addEventListener('change', (e) => {
+          this.currentService = e.target.value;
+          this.loadSchema(e.target.value);
+        });
+      }
 
-    // ルールType変更時に属性名フィールド表示/非表示
-    document.getElementById('ruleType').addEventListener('change', (e) => {
-      const attributeGroup = document.getElementById('attributeNameGroup');
-      attributeGroup.style.display = e.target.value === 'attribute' ? 'block' : 'none';
-    });
+      // ルールType変更時に属性名フィールド表示/非表示
+      const ruleType = document.getElementById('ruleType');
+      if (ruleType) {
+        ruleType.addEventListener('change', (e) => {
+          const attributeGroup = document.getElementById('attributeNameGroup');
+          if (attributeGroup) {
+            attributeGroup.style.display = e.target.value === 'attribute' ? 'block' : 'none';
+          }
+        });
+      }
 
-    // Priority スライダーと数値入力を連動
-    const prioritySlider = document.getElementById('prioritySlider');
-    const priorityInput = document.getElementById('priority');
-    prioritySlider.addEventListener('input', (e) => {
-      priorityInput.value = e.target.value;
-    });
-    priorityInput.addEventListener('input', (e) => {
-      prioritySlider.value = e.target.value;
-    });
+      // Priority スライダーと数値入力を連動
+      const prioritySlider = document.getElementById('prioritySlider');
+      const priorityInput = document.getElementById('priority');
+      if (prioritySlider && priorityInput) {
+        prioritySlider.addEventListener('input', (e) => {
+          priorityInput.value = e.target.value;
+        });
+        priorityInput.addEventListener('input', (e) => {
+          prioritySlider.value = e.target.value;
+        });
+      }
 
-    // ボタン
-    document.getElementById('testSelectorBtn').addEventListener('click', () => this.testSelector());
-    document.getElementById('saveRuleBtn').addEventListener('click', () => this.saveRule());
-    document.getElementById('clearRuleBtn').addEventListener('click', () => this.clearForm());
-    document.getElementById('runAllTestsBtn').addEventListener('click', () => this.runAllTests());
-    document.getElementById('clearLogsBtn').addEventListener('click', () => this.clearLogs());
+      // ボタン
+      const testSelectorBtn = document.getElementById('testSelectorBtn');
+      if (testSelectorBtn) {
+        testSelectorBtn.addEventListener('click', () => this.testSelector());
+      }
 
-    // ログレベルフィルター
-    document.getElementById('logLevelFilter').addEventListener('change', () => this.displayLogs());
+      const saveRuleBtn = document.getElementById('saveRuleBtn');
+      if (saveRuleBtn) {
+        saveRuleBtn.addEventListener('click', () => this.saveRule());
+      }
+
+      const clearRuleBtn = document.getElementById('clearRuleBtn');
+      if (clearRuleBtn) {
+        clearRuleBtn.addEventListener('click', () => this.clearForm());
+      }
+
+      const runAllTestsBtn = document.getElementById('runAllTestsBtn');
+      if (runAllTestsBtn) {
+        runAllTestsBtn.addEventListener('click', () => this.runAllTests());
+      }
+
+      const clearLogsBtn = document.getElementById('clearLogsBtn');
+      if (clearLogsBtn) {
+        clearLogsBtn.addEventListener('click', () => this.clearLogs());
+      }
+
+      // ログレベルフィルター
+      const logLevelFilter = document.getElementById('logLevelFilter');
+      if (logLevelFilter) {
+        logLevelFilter.addEventListener('change', () => this.displayLogs());
+      }
+
+      console.log('[SelectorManager] Event listeners setup complete');
+    } catch (error) {
+      console.error('[SelectorManager] Error setting up event listeners:', error);
+    }
   }
 
   // デフォルトスキーマ読み込み/作成
@@ -153,9 +193,22 @@ class SelectorManager {
 
   // スキーマ情報更新
   updateSchemaInfo() {
-    document.getElementById('schemaVersion').textContent = this.currentSchema.version;
-    const lastUpdated = new Date(this.currentSchema.lastUpdated);
-    document.getElementById('lastUpdated').textContent = lastUpdated.toLocaleString('ja-JP');
+    try {
+      const schemaVersion = document.getElementById('schemaVersion');
+      if (schemaVersion && this.currentSchema) {
+        schemaVersion.textContent = this.currentSchema.version;
+      }
+
+      const lastUpdatedEl = document.getElementById('lastUpdated');
+      if (lastUpdatedEl && this.currentSchema) {
+        const lastUpdated = new Date(this.currentSchema.lastUpdated);
+        lastUpdatedEl.textContent = lastUpdated.toLocaleString('ja-JP');
+      }
+
+      console.log('[SelectorManager] Schema info updated:', this.currentSchema?.version);
+    } catch (error) {
+      console.error('[SelectorManager] Error updating schema info:', error);
+    }
   }
 
   // フォームバリデーション
@@ -325,32 +378,43 @@ class SelectorManager {
 
   // ルール一覧レンダリング
   renderRulesList() {
-    const rulesList = document.getElementById('rulesList');
+    try {
+      const rulesList = document.getElementById('rulesList');
+      if (!rulesList) {
+        console.error('[SelectorManager] rulesList element not found');
+        return;
+      }
 
-    if (!this.currentSchema.rules || this.currentSchema.rules.length === 0) {
-      rulesList.innerHTML = '<p class="empty-message">ルールが設定されていません</p>';
-      return;
-    }
+      if (!this.currentSchema || !this.currentSchema.rules || this.currentSchema.rules.length === 0) {
+        rulesList.innerHTML = '<p class="empty-message">ルールが設定されていません</p>';
+        console.log('[SelectorManager] No rules to display');
+        return;
+      }
 
-    // 優先度でソート
-    const sortedRules = [...this.currentSchema.rules].sort((a, b) => b.priority - a.priority);
+      // 優先度でソート
+      const sortedRules = [...this.currentSchema.rules].sort((a, b) => b.priority - a.priority);
 
-    rulesList.innerHTML = sortedRules.map((rule, idx) => `
-      <div class="rule-item ${!rule.enabled ? 'disabled' : ''}">
-        <div class="rule-item-info">
-          <div class="rule-name">
-            ${rule.enabled ? '✓' : '✗'} ${this.escapeHtml(rule.ruleName)}
-            <span style="color: var(--muted); font-size: 11px;">(Priority: ${rule.priority})</span>
+      rulesList.innerHTML = sortedRules.map((rule, idx) => `
+        <div class="rule-item ${!rule.enabled ? 'disabled' : ''}">
+          <div class="rule-item-info">
+            <div class="rule-name">
+              ${rule.enabled ? '✓' : '✗'} ${this.escapeHtml(rule.ruleName)}
+              <span style="color: var(--muted); font-size: 11px;">(Priority: ${rule.priority})</span>
+            </div>
+            <div class="rule-selector">セレクタ: ${this.escapeHtml(rule.selector)}</div>
+            ${rule.description ? `<div style="color: var(--muted); font-size: 11px; margin-top: 2px;">${this.escapeHtml(rule.description)}</div>` : ''}
           </div>
-          <div class="rule-selector">セレクタ: ${this.escapeHtml(rule.selector)}</div>
-          ${rule.description ? `<div style="color: var(--muted); font-size: 11px; margin-top: 2px;">${this.escapeHtml(rule.description)}</div>` : ''}
+          <div class="rule-item-actions">
+            <button type="button" title="編集" onclick="selectorManager.editRule(${idx})">✎</button>
+            <button type="button" title="削除" onclick="selectorManager.deleteRule(${idx})">🗑</button>
+          </div>
         </div>
-        <div class="rule-item-actions">
-          <button type="button" title="編集" onclick="selectorManager.editRule(${idx})">✎</button>
-          <button type="button" title="削除" onclick="selectorManager.deleteRule(${idx})">🗑</button>
-        </div>
-      </div>
-    `).join('');
+      `).join('');
+
+      console.log('[SelectorManager] Rules list rendered:', sortedRules.length, 'rules');
+    } catch (error) {
+      console.error('[SelectorManager] Error rendering rules list:', error);
+    }
   }
 
   // ルール編集
@@ -402,20 +466,58 @@ class SelectorManager {
 
   // フォームクリア
   clearForm() {
-    document.getElementById('ruleName').value = '';
-    document.getElementById('selector').value = '';
-    document.getElementById('ruleType').value = 'text';
-    document.getElementById('attributeName').value = '';
-    document.getElementById('fallbackSelector').value = '';
-    document.getElementById('ruleDescription').value = '';
-    document.getElementById('priority').value = 50;
-    document.getElementById('prioritySlider').value = 50;
-    document.getElementById('ruleEnabled').checked = true;
-    document.getElementById('attributeNameGroup').style.display = 'none';
-    document.getElementById('saveRuleBtn').textContent = 'ルールを保存';
-    document.getElementById('testResultPanel').style.display = 'none';
-    this.editingRuleIndex = null;
-    this.clearErrors();
+    try {
+      const fields = {
+        'ruleName': '',
+        'selector': '',
+        'ruleType': 'text',
+        'attributeName': '',
+        'fallbackSelector': '',
+        'ruleDescription': '',
+        'priority': 50,
+        'prioritySlider': 50
+      };
+
+      Object.keys(fields).forEach(fieldId => {
+        const element = document.getElementById(fieldId);
+        if (element) {
+          if (element.type === 'checkbox') {
+            element.checked = fields[fieldId];
+          } else {
+            element.value = fields[fieldId];
+          }
+        } else {
+          console.warn(`[SelectorManager] Form field not found: ${fieldId}`);
+        }
+      });
+
+      const ruleEnabled = document.getElementById('ruleEnabled');
+      if (ruleEnabled) {
+        ruleEnabled.checked = true;
+      }
+
+      const attributeNameGroup = document.getElementById('attributeNameGroup');
+      if (attributeNameGroup) {
+        attributeNameGroup.style.display = 'none';
+      }
+
+      const saveRuleBtn = document.getElementById('saveRuleBtn');
+      if (saveRuleBtn) {
+        saveRuleBtn.textContent = 'ルールを保存';
+      }
+
+      const testResultPanel = document.getElementById('testResultPanel');
+      if (testResultPanel) {
+        testResultPanel.style.display = 'none';
+      }
+
+      this.editingRuleIndex = null;
+      this.clearErrors();
+
+      console.log('[SelectorManager] Form cleared');
+    } catch (error) {
+      console.error('[SelectorManager] Error clearing form:', error);
+    }
   }
 
   // 全ルールテスト
@@ -502,26 +604,39 @@ class SelectorManager {
 
   // ログ表示
   displayLogs() {
-    const filter = document.getElementById('logLevelFilter').value;
-    const logsList = document.getElementById('logsList');
+    try {
+      const logLevelFilter = document.getElementById('logLevelFilter');
+      const logsList = document.getElementById('logsList');
 
-    const filteredLogs = filter === 'all'
-      ? this.logs
-      : this.logs.filter(log => log.level === filter);
+      if (!logLevelFilter || !logsList) {
+        console.error('[SelectorManager] Log display elements not found');
+        return;
+      }
 
-    if (filteredLogs.length === 0) {
-      logsList.innerHTML = '<p class="empty-message">ログがありません</p>';
-      return;
+      const filter = logLevelFilter.value;
+      const filteredLogs = filter === 'all'
+        ? this.logs
+        : this.logs.filter(log => log.level === filter);
+
+      if (filteredLogs.length === 0) {
+        logsList.innerHTML = '<p class="empty-message">ログがありません</p>';
+        console.log('[SelectorManager] No logs to display');
+        return;
+      }
+
+      logsList.innerHTML = filteredLogs.map(log => `
+        <div class="log-item ${log.level.toLowerCase()}">
+          [${log.timestamp}] ${log.level}: ${this.escapeHtml(log.message)}
+        </div>
+      `).join('');
+
+      // 最新のログにスクロール
+      logsList.scrollTop = logsList.scrollHeight;
+
+      console.log('[SelectorManager] Logs displayed:', filteredLogs.length, 'logs');
+    } catch (error) {
+      console.error('[SelectorManager] Error displaying logs:', error);
     }
-
-    logsList.innerHTML = filteredLogs.map(log => `
-      <div class="log-item ${log.level.toLowerCase()}">
-        [${log.timestamp}] ${log.level}: ${this.escapeHtml(log.message)}
-      </div>
-    `).join('');
-
-    // 最新のログにスクロール
-    logsList.scrollTop = logsList.scrollHeight;
   }
 
   // ログクリア
@@ -547,6 +662,20 @@ class SelectorManager {
 
 // グローバル インスタンス化
 let selectorManager;
-document.addEventListener('DOMContentLoaded', () => {
+
+function initializeSelectorManager() {
+  console.log('[SelectorManager] Starting initialization');
   selectorManager = new SelectorManager();
-});
+  console.log('[SelectorManager] Initialization complete');
+}
+
+// Check if DOM is already ready
+if (document.readyState === 'loading') {
+  // DOM is still loading
+  console.log('[SelectorManager] DOM is loading, waiting for DOMContentLoaded');
+  document.addEventListener('DOMContentLoaded', initializeSelectorManager);
+} else {
+  // DOM is already loaded (scripts loaded at end of body)
+  console.log('[SelectorManager] DOM already loaded, initializing immediately');
+  initializeSelectorManager();
+}
