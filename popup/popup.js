@@ -529,15 +529,20 @@ function setupTabNavigation() {
     button.addEventListener('click', () => {
       const tabName = button.getAttribute('data-tab');
 
-      // すべてのタブボタンと コンテンツを非アクティブ化
+      // すべてのタブボタンを非アクティブ化
       tabButtons.forEach(btn => btn.classList.remove('active'));
-      tabContents.forEach(content => content.classList.remove('active'));
+      // すべてのタブコンテンツを非表示化
+      tabContents.forEach(content => {
+        content.classList.remove('active');
+        content.style.display = 'none';
+      });
 
       // クリックされたタブをアクティブ化
       button.classList.add('active');
       const activeContent = document.querySelector(`[data-tab="${tabName}"]`);
       if (activeContent) {
         activeContent.classList.add('active');
+        activeContent.style.display = 'block';
       }
     });
   });
@@ -546,7 +551,20 @@ function setupTabNavigation() {
 // Show tabs after setup completion
 function showTabs() {
   document.getElementById('tabNav').style.display = 'flex';
-  document.getElementById('mainScreen').classList.add('active');
+
+  // すべてのタブコンテンツを初期化（非表示）
+  const tabContents = document.querySelectorAll('.tab-content');
+  tabContents.forEach(content => {
+    content.style.display = 'none';
+    content.classList.remove('active');
+  });
+
+  // mainScreen をアクティブ化（表示）
+  const mainScreen = document.getElementById('mainScreen');
+  if (mainScreen) {
+    mainScreen.style.display = 'block';
+    mainScreen.classList.add('active');
+  }
 }
 
 // Initialize on DOM ready
